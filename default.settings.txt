@@ -1,0 +1,92 @@
+# Neutral default profile configuration (Template / Fork fallback).
+# Used automatically by build.mjs, fetch.mjs, market.mjs, steam.mjs and editor/
+# when no custom settings.txt exists in the repository.
+
+layout = banner, about, icons, projects, releases, stats
+
+# ---- theme ----
+theme.mode = dark
+theme.font = led
+theme.style = led
+theme.shape = circle
+theme.dot = 0.39
+theme.slant = 0.22
+theme.animation_speed = 1
+theme.fg = #ffffff
+theme.muted = #cfcfcf
+theme.faint = #7a7a7a
+theme.dim = #2c2c2c
+theme.bg = #000000
+theme.border = #2a2a2a
+theme.palette = manual
+theme.contrast = 70
+theme.light_fg = #111111
+theme.light_muted = #3d3d3d
+theme.light_faint = #8a8a8a
+theme.light_dim = #dadada
+theme.light_bg = #ffffff
+theme.light_border = #d0d7de
+theme.radius = 12
+theme.text_font = ui-monospace, SFMono-Regular, Menlo, Consolas, monospace
+
+# ---- banner: Banner ----
+banner.title = WELCOME
+banner.font = theme
+banner.image = none
+banner.color = #111111
+banner.position = 30
+banner.brightness = 42
+banner.contrast = 115
+banner.tint = #ffffff
+banner.shadow = 60
+banner.effect = none
+banner.animation_speed = 1
+banner.cursor = off
+banner.ticker = 
+banner.ticker_speed = 60
+banner.fps = 12
+banner.duration = 4
+banner.light = keep
+
+# ---- about: Text ----
+about.title = ABOUT
+about.text = Software developer building open-source tools and systems.\nThis profile was made with [profile-matrix](https://github.com/MatteoKaul/profile-matrix): design yours at https://matteokaul.github.io/profile-matrix-config/ and upload the settings.txt.
+
+# ---- icons: Icons ----
+icons.items = javascript, typescript, python, linux, docker, git
+icons.style = sections
+icons.title = SKILLS & TOOLS
+icons.tile = below
+icons.size = 100
+icons.columns = 2
+icons.grid_size = 64
+icons.continuity = unified
+icons.dissolve_single = keep
+icons.double_mode = off
+icons.double_items = 
+icons.col_spans = 
+icons.min_toggle = off
+icons.min_icons = 2
+icons.wide_toggle = off
+icons.wide_above = 4
+icons.move = 
+icons.order = 
+icons.titles = 
+
+# ---- projects: Projects ----
+projects.title = PROJECTS
+projects.mode = pinned
+projects.repos = 
+projects.limit = 6
+projects.empty = hide
+
+# ---- releases: Releases ----
+releases.title = RELEASES
+releases.mode = latest
+releases.repos = 
+releases.limit = 6
+releases.empty = hide
+
+# ---- stats: Stats ----
+stats.title = STATS
+stats.languages = 5

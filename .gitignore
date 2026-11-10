@@ -1,0 +1,7 @@
+node_modules/
+dist/
+_site/
+.DS_Store
+tools/counter/count.json*
+# local test output
+README.local.md

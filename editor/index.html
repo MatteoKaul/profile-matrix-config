@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Only files from this site; images may be data: URLs (the rendered SVGs). -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data: blob:; media-src blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>profile-matrix config</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header class="bar">
+  <strong class="brand">PROFILE EDITOR</strong>
+  <span id="version" class="version"></span>
+  <label>Data
+    <select id="dataSource">
+      <option value="github">GitHub data</option>
+      <option value="sample">Sample data</option>
+    </select>
+  </label>
+  <label>Preview
+    <select id="previewMode">
+      <option value="dark">GitHub dark</option>
+      <option value="light">GitHub light</option>
+    </select>
+  </label>
+  <button id="secretsGuideBtn" title="How to configure GitHub Repository Secrets safely">Secrets guide</button>
+  <span class="spacer"></span>
+  <label class="button">Import settings.txt<input type="file" id="importFile" accept=".txt,.json" title="Or drop the file anywhere on this page" hidden></label>
+  <button id="copy">Copy settings.txt</button>
+  <button id="download" class="primary">Download settings.txt</button>
+  <input id="repoName" type="text" placeholder="you/you" size="14" title="Your profile repository (owner/name), only remembered in this browser" aria-label="Your profile repository">
+  <a id="uploadToGithub" class="button" target="_blank" rel="noopener noreferrer" title="Opens the upload page of your repository: drop settings.txt there and commit">Upload to my repo</a>
+</header>
+
+<dialog id="secretsDialog" class="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <strong>REPOSITORY SECRETS</strong>
+      <button id="closeSecretsBtn" class="icon-btn" title="Close">×</button>
+    </div>
+    <div class="secret-warning">
+      <strong>NEVER PUT API KEYS INTO SETTINGS.TXT</strong>
+      settings.txt is committed to your public repository. Keys belong in GitHub as repository secrets.
+    </div>
+    <div id="secretsBody"></div>
+  </div>
+</dialog>
+
+<main>
+  <nav class="panel" id="modules" aria-label="Modules"></nav>
+  <section class="panel" id="options" aria-label="Options"></section>
+  <section class="preview" id="preview" aria-label="Preview">
+    <div class="status" id="status"></div>
+    <!-- sandbox without allow-scripts: nothing in the preview can run code.
+         allow-same-origin only lets the editor keep the scroll position. -->
+    <iframe id="frame" title="README preview" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+  </section>
+</main>
+
+<script type="module" src="editor.js"></script>
+</body>
+</html>

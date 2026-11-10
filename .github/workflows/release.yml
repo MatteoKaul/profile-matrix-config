@@ -1,0 +1,126 @@
+# Release: on every push to main of MatteoKaul/profile-matrix-config.
+#
+#   1. Next version from Conventional Commits since the last tag vX.Y.Z:
+#        "feat!:" / "BREAKING CHANGE"  -> major
+#        "feat:"                       -> minor
+#        "fix:", "perf:", "refactor:"  -> patch
+#        only docs/chore/ci/style/test -> no release, nothing below runs
+#   2. Web editor -> GitHub Pages (tools/export.mjs site).
+#   3. Generator  -> MatteoKaul/profile-matrix, the template users copy
+#      (tools/export.mjs template), committed and tagged with the same version.
+#   4. Tag + GitHub release here.
+#
+# Runs only in this repository: a fork or copy never deploys or pushes.
+# Needs once (see README "Releasing"):
+#   - Settings -> Pages -> Source: GitHub Actions
+#   - secret PROFILE_MATRIX_DEPLOY_KEY: private half of a deploy key that has
+#     write access to MatteoKaul/profile-matrix (and nothing else)
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Release even without feat/fix commits (e.g. the first Pages deploy)"
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.repository == 'MatteoKaul/profile-matrix-config'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semver.outputs.version }}
+    steps:
+      # Pinned to exact commits, so a moved tag cannot run other code.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check
+        run: node tools/check.mjs
+
+      - name: Next version
+        id: semver
+        run: |
+          last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+          range=${last:+$last..HEAD}
+          msgs=$(git log ${range:-HEAD} --format='%s%n%b')
+          IFS=. read -r major minor patch <<< "${last#v}"
+          major=${major:-0} minor=${minor:-0} patch=${patch:-0}
+          bump="${{ inputs.bump || 'auto' }}"
+          if [ "$bump" = major ] || echo "$msgs" | grep -Eq '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE'; then major=$((major+1)) minor=0 patch=0
+          elif [ "$bump" = minor ] || echo "$msgs" | grep -Eq '^feat(\([^)]*\))?:'; then minor=$((minor+1)) patch=0
+          elif [ "$bump" = patch ] || echo "$msgs" | grep -Eq '^(fix|perf|refactor)(\([^)]*\))?:'; then patch=$((patch+1))
+          else echo "No releasable commits since ${last:-the start}."; exit 0; fi
+          if [ -z "$last" ]; then major=1 minor=0 patch=0; fi # first release is always v1.0.0
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+          echo "Release v$major.$minor.$patch (previous: ${last:-none})"
+
+      - name: Build site
+        if: steps.semver.outputs.version
+        run: node tools/export.mjs site _site "${{ steps.semver.outputs.version }}"
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: steps.semver.outputs.version
+        with:
+          path: _site
+
+      - name: Push generator to MatteoKaul/profile-matrix
+        if: steps.semver.outputs.version
+        env:
+          DEPLOY_KEY: ${{ secrets.PROFILE_MATRIX_DEPLOY_KEY }}
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: |
+          [ -n "$DEPLOY_KEY" ] || { echo "::error::secret PROFILE_MATRIX_DEPLOY_KEY is missing"; exit 1; }
+          key="$RUNNER_TEMP/deploy_key"; printf '%s\n' "$DEPLOY_KEY" > "$key"; chmod 600 "$key"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts"
+          ssh-keyscan -t ed25519 github.com > "$RUNNER_TEMP/known_hosts"
+          git clone --depth 1 git@github.com:MatteoKaul/profile-matrix.git "$RUNNER_TEMP/pm" || git init -b main "$RUNNER_TEMP/pm"
+          cd "$RUNNER_TEMP/pm"
+          # Replace everything with the new export (deleted files disappear too).
+          git rm -rq --ignore-unmatch . && rm -rf -- * .github .gitignore
+          node "$GITHUB_WORKSPACE/tools/export.mjs" template . "$VERSION"
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Release v$VERSION" -m "From MatteoKaul/profile-matrix-config@${GITHUB_SHA::7}"
+          git tag "v$VERSION"
+          git remote get-url origin >/dev/null 2>&1 || git remote add origin git@github.com:MatteoKaul/profile-matrix.git
+          git push origin HEAD:main "v$VERSION"
+          rm -f "$key"
+
+      - name: Tag and release here
+        if: steps.semver.outputs.version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: |
+          git tag "v$VERSION" && git push origin "v$VERSION"
+          gh release create "v$VERSION" --title "v$VERSION" --generate-notes
+
+  pages:
+    needs: release
+    if: needs.release.outputs.version
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

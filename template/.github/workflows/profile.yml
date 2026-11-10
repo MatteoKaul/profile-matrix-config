@@ -1,0 +1,92 @@
+# Updates everything generated in this repo and commits the result:
+#   scripts/fetch.mjs   GitHub data, contributed repos, followers, feeds, avatars -> data/
+#   scripts/live.mjs    Twitch live status -> data/live.json (only with Twitch secrets)
+#   scripts/market.mjs  EOD market prices -> chain-linked index in data/portfolio.json
+#   scripts/steam.mjs   Steam playtime + daily snapshots -> data/steam.json (with STEAM_API_KEY)
+#   scripts/build.mjs   settings.txt (or default.settings.txt until one exists) + data -> README.md and assets/gen/
+#
+# Runs daily (stats, activity, market EOD, Steam snapshots and releases change
+# without a commit here), when started manually (Actions tab -> "Update profile"
+# -> "Run workflow") and when settings, scripts, fonts or source images change on main.
+# Never runs in MatteoKaul/profile-matrix itself: that repo is the template,
+# its README explains how to use it and must not be replaced by a profile.
+name: Update profile
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # daily, 03:17 UTC
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - settings.txt
+      - default.settings.txt
+      - .github/workflows/profile.yml
+      - scripts/**
+      - fonts/**
+      - assets/src/**
+
+permissions:
+  contents: write
+
+# Never run two updates at once (both would push).
+concurrency:
+  group: update-profile
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository != 'MatteoKaul/profile-matrix'
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to exact commits (v4.3.1 / v4.4.0), so a changed tag cannot run other code.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+
+      # Only needed to convert video banners (mp4/webm/mov) in assets/src.
+      - name: Install ffmpeg
+        if: hashFiles('assets/src/*.mp4', 'assets/src/*.webm', 'assets/src/*.mov') != ''
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+
+      # The built-in token is enough: only public profile data is read.
+      - name: Fetch GitHub data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_USER: ${{ github.repository_owner }}
+        run: node scripts/fetch.mjs
+
+      # Optional: repository secrets TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET
+      # (see scripts/live.mjs); without them this step does nothing.
+      - name: Twitch live status
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+        run: node scripts/live.mjs
+
+      # Optional: EOD market prices for the portfolio module (provider yahoo
+      # needs no key; tiingo, eodhd, alphavantage, stooq read MARKET_API_KEY).
+      - name: Update portfolio performance index
+        env:
+          MARKET_API_KEY: ${{ secrets.MARKET_API_KEY }}
+        run: node scripts/market.mjs
+
+      # Optional: Steam playtime & daily snapshot delta (requires repository
+      # secret STEAM_API_KEY and a public Steam profile).
+      - name: Update Steam playtime snapshots
+        env:
+          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+          STEAM_ID64: ${{ secrets.STEAM_ID64 }}
+        run: node scripts/steam.mjs
+
+      - name: Build README and images
+        run: node scripts/build.mjs
+
+      # Commits made with GITHUB_TOKEN do not trigger workflows, so no loop.
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A README.md assets/gen data
+          git diff --cached --quiet || (git commit -m "Update profile" && git push)

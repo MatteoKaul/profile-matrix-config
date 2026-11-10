@@ -1,0 +1,50 @@
+# Keeps the Twitch live card current: checks every 10 minutes whether a
+# channel of a twitch module is live, and rebuilds + commits only when that
+# changed (going live / offline, new title or game).
+#
+# Off by default. To use it:
+#   1. add the twitch module to the layout in settings.txt
+#   2. create a Twitch application (dev.twitch.tv/console) and save its id and
+#      secret as repository secrets TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET
+#   3. remove the "#" in front of the two schedule lines below
+# The daily "Update profile" run also updates the status, without this file.
+name: Twitch live status
+
+on:
+  # schedule:
+  #   - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Shares the group with "Update profile", so the two never push at once.
+concurrency:
+  group: update-profile
+  cancel-in-progress: false
+
+jobs:
+  live:
+    if: github.repository != 'MatteoKaul/profile-matrix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Twitch live status
+        env:
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+        run: node scripts/live.mjs
+
+      # Build and commit only if data/live.json changed.
+      - name: Rebuild and commit
+        run: |
+          if [ -z "$(git status --porcelain data/live.json)" ]; then echo "no change"; exit 0; fi
+          node scripts/build.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A README.md assets/gen data/live.json
+          git commit -m "Update live status" && git push
