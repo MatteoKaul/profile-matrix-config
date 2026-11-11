@@ -98,14 +98,39 @@ export const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
 export const svgDoc = (w, h, body) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`;
 
-/** Line around a card: stroke attributes for theme.edge (identical to the old border when not outlined). */
+// ------------------------------------------------------------- surfaces --
+//
+// Shape rules (docs/design-essence.txt, "Corners and outlines"):
+//  1. Same radius and line width ON SCREEN for every surface. Images are shown
+//     at different scales (banner 0.55x, icon tiles 0.5-0.8x), so every value
+//     is divided by k = displayed px per drawing unit.
+//  2. Strokes sit inside the shape: inset by half the line width, radius
+//     reduced by the same amount, so the line is concentric with the fill.
+//  3. Nested shapes are concentric: inner radius = outer radius - gap, never
+//     below R/3 (and 0 when R = 0); a radius is at most half the short side.
+
+/** Stroke attributes for theme.edge (width in drawing units). */
 export const edge = (theme, width = theme.edge.width) =>
-  `stroke="${theme.edge.color}"${theme.edge.opacity < 1 ? ` stroke-opacity="${theme.edge.opacity}"` : ""}${width !== 1 ? ` stroke-width="${width}"` : ""}`;
-/** The edge of a full-size rect: inset by half the line width so it is not clipped. */
-const edgeRect = (theme, w, h, rx) => {
-  const i = theme.edge.width / 2;
-  return `<rect x="${n(i)}" y="${n(i)}" width="${n(w - 2 * i)}" height="${n(h - 2 * i)}" rx="${rx}" fill="none" ${edge(theme)}/>`;
-};
+  `stroke="${theme.edge.color}"${theme.edge.opacity < 1 ? ` stroke-opacity="${theme.edge.opacity}"` : ""}${width !== 1 ? ` stroke-width="${n(width)}"` : ""}`;
+
+/** Outer corner radius of a w x h surface shown at k px per unit. */
+const radiusFor = (theme, w, h, k = 1) => Math.max(0, Math.min(theme.radius / k, w / 2, h / 2));
+
+/** Radius for a shape sitting `gap` units inside a surface (rule 3), in drawing units. */
+export const innerRadius = (theme, gap, k = 1) =>
+  theme.radius <= 0 ? 0 : n(Math.max(theme.radius - gap * k, theme.radius / 3) / k);
+
+/**
+ * Background and/or outline of a w x h surface at (0, 0), shown at k px per unit.
+ * fill: theme.fill unless given; withEdge: draw the outline (inside, rule 2).
+ */
+export function surface(theme, w, h, { k = 1, withEdge = true, fill = theme.fill } = {}) {
+  const r = radiusFor(theme, w, h, k), sw = theme.edge.width / k;
+  const bg = fill && fill !== "none" ? `<rect width="${n(w)}" height="${n(h)}" rx="${n(r)}" fill="${fill}"/>` : "";
+  if (!withEdge) return bg;
+  return bg + `<rect x="${n(sw / 2)}" y="${n(sw / 2)}" width="${n(w - sw)}" height="${n(h - sw)}" rx="${n(Math.max(0, r - sw / 2))}" ` +
+    `fill="none" ${edge(theme, sw)}/>`;
+}
 
 /** Drawing context bound to a theme and font (supports both "led" and "standard" renderer styles). */
 export function painter(theme, font, styleOverride) {
@@ -158,12 +183,9 @@ export function painter(theme, font, styleOverride) {
     return str + ".";
   }
 
-  /** Card background + content, without the <svg> wrapper (for nesting). */
-  const cardBody = (w, h, body) =>
-    (theme.edge.width === 1
-      ? `<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="${theme.radius}" fill="${theme.fill}" ${edge(theme)}/>`
-      : `<rect width="${w}" height="${h}" rx="${theme.radius}" fill="${theme.fill}"/>` + edgeRect(theme, w, h, theme.radius)) + body;
-  const card = (w, h, body) => svgDoc(w, h, cardBody(w, h, body));
+  /** Card background + outline + content, without the <svg> wrapper (k = display scale). */
+  const cardBody = (w, h, body, k = 1) => surface(theme, w, h, { k }) + body;
+  const card = (w, h, body, k = 1) => svgDoc(w, h, cardBody(w, h, body, k));
 
   return { text, unitWidth, truncate, card, cardBody, small, large, norm };
 }
@@ -174,8 +196,7 @@ export function heading(p, theme, label, small = false) {
   const pitch = small ? 3.2 : 5.6, padY = small ? 10 : 16;
   const t = p.text(label, 24, padY, { pitch, fill: small ? theme.muted : theme.fg });
   const h = Math.round(t.h + 2 * padY);
-  return svgDoc(CARD_W, h, `<rect width="${CARD_W}" height="${h}" rx="${theme.radius}" fill="${theme.fill}"/>` +
-    (theme.outlined ? edgeRect(theme, CARD_W, h, theme.radius) : "") + t.svg);
+  return svgDoc(CARD_W, h, surface(theme, CARD_W, h, { withEdge: theme.outlined }) + t.svg);
 }
 
 const TILE_W = 168, TILE_H = 132, TILE_GAP = 6;
@@ -187,7 +208,7 @@ const TILE_W = 168, TILE_H = 132, TILE_GAP = 6;
  *   badge  48 high, logo left, label right; width follows the label (or 2x min width)
  * Returns {w, h, body}; body is SVG without the <svg> wrapper.
  */
-export function tileParts(p, theme, icon, style = "below", doubleWidth = false) {
+export function tileParts(p, theme, icon, style = "below", doubleWidth = false, k = 1) {
   const logo = (size, cx, cy) => { // logos are 24x24 markup; wordmarks get a larger "scale"
     const s = size * (icon.scale || 1);
     return `<g transform="translate(${n(cx - s / 2)} ${n(cy - s / 2)}) scale(${(s / 24).toFixed(3)})" ` +
@@ -195,13 +216,13 @@ export function tileParts(p, theme, icon, style = "below", doubleWidth = false) 
   };
   if (style === "none") {
     const w = doubleWidth ? TILE_H * 2 + TILE_GAP : TILE_H;
-    return { w, h: TILE_H, body: p.cardBody(w, TILE_H, logo(60, w / 2, TILE_H / 2)) };
+    return { w, h: TILE_H, body: p.cardBody(w, TILE_H, logo(60, w / 2, TILE_H / 2), k) };
   }
   if (style === "badge") {
     const H = 48, label = p.text(icon.label, 0, 0, { pitch: 2.6, fill: theme.muted });
     const baseW = Math.ceil(16 + 26 + 12 + label.w + 16);
     const w = doubleWidth ? Math.max(baseW * 2 + TILE_GAP, 280) : baseW;
-    return { w, h: H, body: p.cardBody(w, H, logo(26, 16 + 13, H / 2) + `<g transform="translate(54 ${n((H - label.h) / 2)})">${label.svg}</g>`) };
+    return { w, h: H, body: p.cardBody(w, H, logo(26, 16 + 13, H / 2) + `<g transform="translate(54 ${n((H - label.h) / 2)})">${label.svg}</g>`, k) };
   }
   const W = doubleWidth ? TILE_W * 2 + TILE_GAP : TILE_W;
   // Long labels get tighter letter spacing, then a smaller pitch, so they always fit.
@@ -209,12 +230,12 @@ export function tileParts(p, theme, icon, style = "below", doubleWidth = false) 
   const pitch = Math.min(3.0, (W - 16) / (p.unitWidth(icon.label, { gap }) + 2 * theme.dot * p.norm));
   const label = p.text(icon.label, W / 2, 0, { pitch, fill: theme.muted, gap, anchor: "middle" });
   return { w: W, h: TILE_H, body: p.cardBody(W, TILE_H,
-    `${logo(48, W / 2, 46)}<g transform="translate(0 ${n(112 - label.h / 2)})">${label.svg}</g>`) };
+    `${logo(48, W / 2, 46)}<g transform="translate(0 ${n(112 - label.h / 2)})">${label.svg}</g>`, k) };
 }
 
-/** One icon card as a standalone SVG; also returns its size. */
-export function tile(p, theme, icon, style = "below", doubleWidth = false) {
-  const t = tileParts(p, theme, icon, style, doubleWidth);
+/** One icon card as a standalone SVG shown at k px per unit; also returns its size. */
+export function tile(p, theme, icon, style = "below", doubleWidth = false, k = 1) {
+  const t = tileParts(p, theme, icon, style, doubleWidth, k);
   return { svg: svgDoc(t.w, t.h, t.body), w: t.w, h: t.h };
 }
 
@@ -273,8 +294,7 @@ export function categoryRows(p, theme, groups, o) {
 
       const pitch = Math.max(1.8, Math.min(3.0, (cellW - 28) / (p.unitWidth(title) + 2 * theme.dot * p.norm)));
       const label = p.text(p.truncate(title, pitch, cellW - 28), x0 + 14, 0, { pitch, fill: theme.fg });
-      const head = `<rect x="${n(x0)}" width="${n(cellW)}" height="${HEAD}" rx="${theme.radius}" fill="${theme.fill}"/>` +
-        (theme.outlined ? `<g transform="translate(${n(x0)} 0)">${edgeRect(theme, cellW, HEAD, theme.radius)}</g>` : "") +
+      const head = `<g transform="translate(${n(x0)} 0)">${surface(theme, cellW, HEAD, { withEdge: theme.outlined })}</g>` +
         `<g transform="translate(0 ${n((HEAD - label.h) / 2)})">${label.svg}</g>`;
 
       // Calculate how many single tiles fit per line in this column
@@ -292,7 +312,7 @@ export function categoryRows(p, theme, groups, o) {
         } else if (!isDouble && useAutoDouble && isLast && colsPerLine === 2 && slotsUsedInLine === 0 && icons.length % 2 === 1) {
           isDouble = true;
         }
-        const t = tileParts(p, theme, icon, o.tile, isDouble);
+        const t = tileParts(p, theme, icon, o.tile, isDouble, scale); // drawn scaled: compensate radius and line
         const w = Math.min(cellW, t.w * scale), h = t.h * scale;
         if (x > 0 && x + w > cellW + 0.5) {
           x = 0;
@@ -358,8 +378,8 @@ export function personCard(p, theme, entry, pic = {}) {
     `preserveAspectRatio="xMidYMid ${pic.logo ? "meet" : "slice"}" clip-path="url(#c)" filter="url(#g)"/>`;
   if (pic.avatar) image = photo(pic.avatar, `<circle cx="${cx}" cy="${cy}" r="${R}"/>`);
   else if (pic.logo) {
-    image = `<rect x="${cx - R}" y="${cy - R}" width="${2 * R}" height="${2 * R}" rx="10" fill="${theme.dim}"/>` +
-      photo(pic.logo, `<rect x="${cx - R}" y="${cy - R}" width="${2 * R}" height="${2 * R}" rx="10"/>`);
+    image = `<rect x="${cx - R}" y="${cy - R}" width="${2 * R}" height="${2 * R}" rx="${innerRadius(theme, cx - R)}" fill="${theme.dim}"/>` +
+      photo(pic.logo, `<rect x="${cx - R}" y="${cy - R}" width="${2 * R}" height="${2 * R}" rx="${innerRadius(theme, cx - R)}"/>`);
   } else if (pic.icon) {
     const size = 32 * (pic.icon.scale || 1);
     image = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${theme.dim}"/>` +
@@ -461,7 +481,6 @@ export function bannerSvg(p, theme, opt, image, invert = false) {
     body.push(`<image href="data:${image.mime};base64,${image.base64}" x="0" y="${n(y)}" width="${W}" height="${n(ph)}" ` +
       `preserveAspectRatio="none" filter="url(#photo)"/>`);
   } else if (theme.fill !== "none") body.push(`<rect width="${W}" height="${H}" fill="${opt.color}"/>`);
-  else if (theme.outlined) body.push(edgeRect(theme, W, H, n((theme.radius * W) / CARD_W))); // same corners as the cards once scaled
 
   const title = String(opt.title).toUpperCase();
   const bad = [...new Set(title)].filter((c) => c !== " " && !(p.large.glyphs[c]));
@@ -594,7 +613,12 @@ export function bannerSvg(p, theme, opt, image, invert = false) {
     css.push(`.tk{animation:tick ${n(L / (opt.ticker_speed * speed))}s linear infinite}@keyframes tick{to{transform:translateX(-${n(L)}px)}}`);
   }
   const style = css.length ? `<style>${css.join("")}@media (prefers-reduced-motion:reduce){*{animation:none!important}}</style>` : "";
-  return svgDoc(W, H, `${style}<defs>${defs.join("")}</defs>${body.join("")}`);
+  // Shown at 100 % README width: same corners and outline as the cards (rule 1).
+  const k = CARD_W / W, r = n(radiusFor(theme, W, H, k));
+  if (r > 0) defs.push(`<clipPath id="corners"><rect width="${W}" height="${H}" rx="${r}"/></clipPath>`);
+  const content = r > 0 ? `<g clip-path="url(#corners)">${body.join("")}</g>` : body.join("");
+  const frame = theme.outlined ? surface(theme, W, H, { k, fill: "none" }) : "";
+  return svgDoc(W, H, `${style}<defs>${defs.join("")}</defs>${content}${frame}`);
 }
 
 // ------------------------------------------------------- more modules --
@@ -649,7 +673,7 @@ export function feedCard(p, theme, item, thumb) {
   let x = pad, image = "";
   if (thumb) {
     const tw = 160, th = 90, ty = (H - th) / 2;
-    image = `<defs><clipPath id="c"><rect x="${pad}" y="${ty}" width="${tw}" height="${th}" rx="8"/></clipPath>` +
+    image = `<defs><clipPath id="c"><rect x="${pad}" y="${ty}" width="${tw}" height="${th}" rx="${innerRadius(theme, pad)}"/></clipPath>` +
       `<filter id="g"><feColorMatrix type="saturate" values="0"/></filter></defs>` +
       `<image href="data:${thumb.mime};base64,${thumb.base64}" x="${pad}" y="${ty}" width="${tw}" height="${th}" ` +
       `preserveAspectRatio="xMidYMid slice" clip-path="url(#c)" filter="url(#g)"/>`;
@@ -731,7 +755,7 @@ export function spokenCard(p, theme, rows, style = "bars") {
       const col = i % cols, r = Math.floor(i / cols);
       const x = pad + col * (colW + gap), y = 20 + r * 72;
       const pct = Math.min(100, Math.max(0, Number(pctStr) || 0));
-      parts.push(`<rect x="${n(x)}" y="${y}" width="${n(colW)}" height="58" rx="8" fill="${theme.fill}" ${edge(theme, 1)}/>`);
+      parts.push(`<rect x="${n(x)}" y="${y}" width="${n(colW)}" height="58" rx="${innerRadius(theme, pad)}" fill="${theme.fill}" ${edge(theme, 1)}/>`);
       parts.push(p.text(p.truncate(lang, 3.0, colW - 28), x + 14, y + 12, { pitch: 3.0, fill: theme.fg }).svg);
       if (level) parts.push(p.text(p.truncate(level, 2.2, colW - 28), x + 14, y + 36, { pitch: 2.2, fill: theme.muted }).svg);
       if (pct > 0) parts.push(p.text(`${Math.round(pct)}%`, x + colW - 14, y + 14, { pitch: 2.4, fill: theme.faint, anchor: "end" }).svg);
@@ -775,7 +799,7 @@ export function followersCard(p, theme, count, recent = [], limit = 6) {
     const c = idx % cols, r = Math.floor(idx / cols);
     const x0 = pad + c * (colW + gap), y0 = y + r * 52;
     const login = typeof f === "string" ? f : f.login || "user";
-    parts.push(`<rect x="${n(x0)}" y="${y0}" width="${n(colW)}" height="42" rx="8" fill="${theme.dim}" fill-opacity=".35" ${edge(theme, 1)}/>`);
+    parts.push(`<rect x="${n(x0)}" y="${y0}" width="${n(colW)}" height="42" rx="${innerRadius(theme, pad)}" fill="${theme.dim}" fill-opacity=".35" ${edge(theme, 1)}/>`);
     parts.push(`<circle cx="${n(x0 + 21)}" cy="${y0 + 21}" r="11" fill="${theme.dim}"/>`);
     parts.push(p.text(login[0] || "U", x0 + 21, y0 + 14, { pitch: 2.0, fill: theme.fg, anchor: "middle" }).svg);
     parts.push(p.text(p.truncate(`@${login}`, 2.4, colW - 52), x0 + 40, y0 + 13, { pitch: 2.4, fill: theme.fg }).svg);
@@ -910,7 +934,7 @@ export function portfolioCard(p, theme, allocations, history, opt) {
     allocations.forEach((a, i) => {
       const w = Math.max(24, (a.weight / 100) * mapW);
       const op = opacities[i % opacities.length];
-      parts.push(`<rect x="${n(tx)}" y="${y}" width="${n(Math.max(1, w - 3))}" height="${mapH}" rx="6" fill="${theme.fg}" fill-opacity="${op * 0.25}" stroke="${theme.fg}" stroke-opacity="${op}"/>`);
+      parts.push(`<rect x="${n(tx)}" y="${y}" width="${n(Math.max(1, w - 3))}" height="${mapH}" rx="${innerRadius(theme, pad)}" fill="${theme.fg}" fill-opacity="${op * 0.25}" stroke="${theme.fg}" stroke-opacity="${op}"/>`);
       if (w >= 72) {
         parts.push(p.text(p.truncate(a.ticker, 2.6, w - 16), tx + 10, y + 14, { pitch: 2.6, fill: theme.fg }).svg);
         parts.push(p.text(`${a.weight.toFixed(1).replace(".0", "")}%`, tx + 10, y + 42, { pitch: 3.0, fill: theme.muted }).svg);
@@ -964,7 +988,7 @@ export function portfolioCard(p, theme, allocations, history, opt) {
     if (totalDays < 7) {
       // 7-Day Lock: do not show the performance graph until at least 7 days of history exist
       y += 28;
-      parts.push(`<rect x="${pad}" y="${y}" width="${W - 2 * pad}" height="82" rx="8" fill="${theme.dim}" fill-opacity=".22" ${edge(theme, 1)}/>`);
+      parts.push(`<rect x="${pad}" y="${y}" width="${W - 2 * pad}" height="82" rx="${innerRadius(theme, pad)}" fill="${theme.dim}" fill-opacity=".22" ${edge(theme, 1)}/>`);
       const lockMsg = p.text(`7-DAY THRESHOLD LOCK: COLLECTING HISTORY (${totalDays}/7 DAYS)`, W / 2, y + 22, { pitch: 2.6, fill: theme.fg, anchor: "middle" });
       const subMsg = p.text("PERFORMANCE GRAPH UNLOCKS AUTOMATICALLY AFTER 7 DAILY SNAPSHOTS", W / 2, y + 50, { pitch: 2.0, fill: theme.faint, anchor: "middle" });
       parts.push(lockMsg.svg, subMsg.svg);

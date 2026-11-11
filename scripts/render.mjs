@@ -257,9 +257,9 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
         }
         // Columns = 1: standalone SVG tiles
         const tileImg = (k, isDouble = false) => {
-          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble);
+          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble, o.size / 132); // shown at size/132 px per unit
           const fileKey = isDouble ? `${k}-2x` : k;
-          return img(put(`tiles/${o.tile}/${fileKey}.svg`, t.svg), catalog.icons[k].label, `height="${Math.round((o.size * t.h) / 132)}"`);
+          return img(put(`tiles/${o.tile}-${o.size}/${fileKey}.svg`, t.svg), catalog.icons[k].label, `height="${Math.round((o.size * t.h) / 132)}"`);
         };
         const row = (keys) => "<p>\n" + keys.map((k, idx) => {
           const isLastOdd = useAutoDouble && idx === keys.length - 1 && keys.length % 2 === 1;
@@ -369,8 +369,8 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
         if (!links.length) break;
         const tiles = links.map(({ k, url, label }, i) => {
           const icon = label ? { ...catalog.icons[k], label: label.toUpperCase() } : catalog.icons[k];
-          const t = tile(p, theme, icon, o.tile);
-          const file = label ? `${m.id}/link-${i + 1}.svg` : `tiles/${o.tile}/${k}.svg`;
+          const t = tile(p, theme, icon, o.tile, false, o.size / 132);
+          const file = label ? `${m.id}/link-${i + 1}.svg` : `tiles/${o.tile}-${o.size}/${k}.svg`;
           return "  " + link(url, img(put(file, t.svg), icon.label, `height="${Math.round((o.size * t.h) / 132)}"`));
         });
         blocks.push(join(headingBlock(m, o.title), cardRow(tiles)));
