@@ -237,3 +237,8 @@ main > * { min-width: 0; min-height: 0; }
 .zk-risk.caution { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn-text); }
 .zk-risk.not-recommended { border: 2px solid var(--danger); background: #2a0d0d; color: #ffc9c9; }
 .zk-risk.caution strong, .zk-risk.not-recommended strong { color: #fff; }
+
+/* ---- drag and drop: whole row draggable, no text selection while dragging ---- */
+[draggable="true"] { -webkit-user-drag: element; user-select: none; -webkit-user-select: none; }
+.mod[draggable="true"], .chip { cursor: grab; }
+.mod[draggable="true"]:active, .chip:active { cursor: grabbing; }

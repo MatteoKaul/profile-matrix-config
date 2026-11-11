@@ -19,6 +19,9 @@ import { fileURLToPath } from "node:url";
 import { feedLabel, feedUrl, gistCard, guestbookEntries, parseFeed, youtubeChannelId } from "./lib/sources.mjs";
 import { loadConfig } from "./lib/config.mjs";
 import { avatarLogins, imageSize, splitList } from "./render.mjs";
+import { optionalStep } from "./lib/optional.mjs";
+
+optionalStep("fetch"); // the profile is still built (with the last good data) if GitHub fails
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const path = (p) => join(ROOT, p);
@@ -34,47 +37,57 @@ const UA = { "User-Agent": "profile-readme (github.com/" + REPO + ")" };
 // ---------------------------------------------------------------- GitHub --
 
 const GIST = "name description url stargazerCount files(limit: 1) { name language { name } }";
-const QUERY = `
-query($login: String!) {
-  user(login: $login) {
-    followers(first: 12) { totalCount nodes { login } }
-    pinnedItems(first: 6, types: [REPOSITORY, GIST]) { nodes { __typename ... on Repository { name } ... on Gist { ${GIST} } } }
-    gists(first: 12, privacy: PUBLIC, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${GIST} } }
-    contributionsCollection {
-      totalCommitContributions
-      contributionCalendar { totalContributions weeks { contributionDays { contributionLevel } } }
-    }
-    repositoriesContributedTo(first: 12, privacy: PUBLIC, includeUserRepositories: false, orderBy: {field: STARGAZERS, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY]) {
-      nodes {
-        nameWithOwner description url isFork stargazerCount pushedAt
-        primaryLanguage { name }
-      }
-    }
-    repositories(first: 100, ownerAffiliations: OWNER, privacy: PUBLIC, orderBy: {field: PUSHED_AT, direction: DESC}) {
-      nodes {
-        name description url isFork stargazerCount pushedAt
-        primaryLanguage { name }
-        languages(first: 10, orderBy: {field: SIZE, direction: DESC}) { edges { size node { name } } }
-        latestRelease { tagName url publishedAt }
-      }
-    }
-  }
-}`;
+const REPO_FIELDS = "description url isFork stargazerCount pushedAt primaryLanguage { name }";
 
-async function graphql(query, variables) {
-  const res = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: { Authorization: `bearer ${GITHUB_TOKEN}`, ...UA },
-    body: JSON.stringify({ query, variables }),
-  });
-  const payload = await res.json();
-  if (!res.ok || payload.errors) throw new Error(`GitHub API: ${res.status} ${JSON.stringify(payload.errors || payload)}`);
-  return payload.data;
+// The user query in parts: GitHub rejects a whole query when one field fails
+// (e.g. one the Actions token may not read), so each part is asked on its own.
+// Only "core" is required; a failed optional part logs a warning and keeps the
+// value from the last good run (data/github.json).
+const PARTS = {
+  core: `followers { totalCount }
+    repositories(first: 100, ownerAffiliations: OWNER, privacy: PUBLIC, orderBy: {field: PUSHED_AT, direction: DESC}) {
+      nodes { name ${REPO_FIELDS}
+        languages(first: 10, orderBy: {field: SIZE, direction: DESC}) { edges { size node { name } } }
+        latestRelease { tagName url publishedAt } } }`,
+  contributions: `contributionsCollection { totalCommitContributions
+    contributionCalendar { totalContributions weeks { contributionDays { contributionLevel } } } }`,
+  recentFollowers: "recentFollowers: followers(first: 12) { nodes { login } }",
+  pinned: `pinnedItems(first: 6, types: [REPOSITORY, GIST]) { nodes { __typename ... on Repository { name } ... on Gist { ${GIST} } } }`,
+  gists: `gists(first: 12, privacy: PUBLIC, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${GIST} } }`,
+  contributed: `repositoriesContributedTo(first: 12, privacy: PUBLIC, includeUserRepositories: false,
+    orderBy: {field: STARGAZERS, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST, REPOSITORY]) { nodes { nameWithOwner ${REPO_FIELDS} } }`,
+};
+
+async function graphql(query, variables, tries = 2) {
+  for (let i = 1; ; i++) {
+    const res = await fetch("https://api.github.com/graphql", {
+      method: "POST",
+      headers: { Authorization: `bearer ${GITHUB_TOKEN}`, ...UA },
+      body: JSON.stringify({ query, variables }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    if (res.ok && !payload.errors) return payload.data;
+    const msg = `GitHub API ${res.status}: ${(payload.errors || []).map((e) => e.message).join("; ") || payload.message || "no data"}`;
+    if (i >= tries) throw new Error(msg);
+    await new Promise((r) => setTimeout(r, 3000)); // "Something went wrong" is often temporary
+  }
 }
 
-const u = (await graphql(QUERY, { login: GH_USER })).user;
+const prev = readJson("data/github.json", {});
+const u = {}, failed = [];
+for (const [name, fields] of Object.entries(PARTS)) {
+  try {
+    Object.assign(u, (await graphql(`query($login: String!) { user(login: $login) { ${fields} } }`, { login: GH_USER })).user);
+  } catch (err) {
+    if (name === "core") throw err; // handled by optionalStep: warning, old data kept, build goes on
+    failed.push(name);
+    console.log(`::warning title=GitHub ${name} skipped::${err.message.slice(0, 300)} (last good value kept)`);
+  }
+}
 const LEVEL = { NONE: 0, FIRST_QUARTILE: 1, SECOND_QUARTILE: 2, THIRD_QUARTILE: 3, FOURTH_QUARTILE: 4 };
-const cal = u.contributionsCollection.contributionCalendar;
+const cal = u.contributionsCollection?.contributionCalendar;
+const repoCard = (r) => ({ name: r.nameWithOwner, description: r.description, url: r.url, fork: r.isFork,
+  stars: r.stargazerCount, pushedAt: r.pushedAt, language: r.primaryLanguage?.name || "" });
 
 // Reduced to what render.mjs uses; the format matches SAMPLE_DATA there.
 const data = {
@@ -82,14 +95,15 @@ const data = {
   repo: REPO,
   fetchedAt: new Date().toISOString(),
   followers: u.followers.totalCount,
-  recentFollowers: (u.followers.nodes || []).map((f) => ({ login: f.login })),
-  commits: u.contributionsCollection.totalCommitContributions,
-  pinned: u.pinnedItems.nodes.filter((n) => n.__typename === "Repository").map((r) => r.name),
+  recentFollowers: u.recentFollowers ? u.recentFollowers.nodes.map((f) => ({ login: f.login })) : prev.recentFollowers || [],
+  commits: u.contributionsCollection ? u.contributionsCollection.totalCommitContributions : prev.commits || 0,
+  pinned: u.pinnedItems ? u.pinnedItems.nodes.filter((n) => n.__typename === "Repository").map((r) => r.name) : prev.pinned || [],
   gists: {
-    pinned: u.pinnedItems.nodes.filter((n) => n.__typename === "Gist").map(gistCard),
-    recent: u.gists.nodes.map(gistCard),
+    pinned: u.pinnedItems ? u.pinnedItems.nodes.filter((n) => n.__typename === "Gist").map(gistCard) : prev.gists?.pinned || [],
+    recent: u.gists ? u.gists.nodes.map(gistCard) : prev.gists?.recent || [],
   },
-  calendar: { total: cal.totalContributions, weeks: cal.weeks.map((w) => w.contributionDays.map((d) => LEVEL[d.contributionLevel])) },
+  calendar: cal ? { total: cal.totalContributions, weeks: cal.weeks.map((w) => w.contributionDays.map((d) => LEVEL[d.contributionLevel])) }
+    : prev.calendar || { total: 0, weeks: [] },
   repos: u.repositories.nodes.map((r) => ({
     name: r.name,
     description: r.description,
@@ -101,15 +115,8 @@ const data = {
     languages: Object.fromEntries(r.languages.edges.map((e) => [e.node.name, e.size])),
     release: r.latestRelease && { tag: r.latestRelease.tagName, url: r.latestRelease.url, date: r.latestRelease.publishedAt.slice(0, 10) },
   })),
-  contributed: (u.repositoriesContributedTo?.nodes || []).map((r) => ({
-    name: r.nameWithOwner,
-    description: r.description,
-    url: r.url,
-    fork: r.isFork,
-    stars: r.stargazerCount,
-    pushedAt: r.pushedAt,
-    language: r.primaryLanguage?.name || "",
-  })),
+  contributed: u.repositoriesContributedTo ? u.repositoriesContributedTo.nodes.map(repoCard)
+    : (prev.contributed || []).filter((c) => !c.extra),
 };
 
 // Also fetch any extra external owner/repo listed in contributed.repos
@@ -127,11 +134,7 @@ for (const full of extraContributed) {
       }
     }`, { owner, name })).repository;
     if (r) {
-      data.contributed.push({
-        name: r.nameWithOwner, description: r.description, url: r.url,
-        fork: r.isFork, stars: r.stargazerCount, pushedAt: r.pushedAt,
-        language: r.primaryLanguage?.name || "",
-      });
+      data.contributed.push({ ...repoCard(r), extra: true });
     }
   } catch (err) {
     console.warn(`contributed ${full}: ${err.message}`);
@@ -225,5 +228,6 @@ for (const item of Object.values(feeds).flat()) {
 prune("data/thumbs", Object.values(feeds).flat().map((i) => i.thumb.split("/")[2]).filter(Boolean));
 writeFileSync(path("data/feeds.json"), JSON.stringify(feeds, null, 1) + "\n");
 
+if (failed.length) console.log(`GitHub parts skipped: ${failed.join(", ")}`);
 console.log(`fetched ${data.repos.length} repos, ${data.contributed.length} contributed, ${data.calendar.total} contributions, ` +
   `${data.gists.recent.length} gists, ${logins.length} avatars, ${sources.length} feeds${issue ? `, ${data.guestbook?.entries?.length ?? 0} guestbook entries` : ""}`);

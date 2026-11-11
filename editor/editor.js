@@ -15,6 +15,8 @@ const h = (tag, attrs = {}, ...children) => {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    // draggable is "true"/"false", not a boolean attribute: draggable="" means "auto" (= not draggable for a div)
+    else if (k === "draggable") el.setAttribute(k, v ? "true" : "false");
     else if (v === true) el.setAttribute(k, "");
     else if (v !== false && v != null) el.setAttribute(k, v);
   }
@@ -202,13 +204,28 @@ function renderModules() {
 }
 
 /** HTML5 drag and drop between module rows. */
+// What is being dragged inside the editor. Kept here rather than in custom
+// dataTransfer types, which Safari does not reliably expose during dragover.
+const drag = { kind: null, id: null };
+function startDrag(e, kind, id) {
+  drag.kind = kind; drag.id = id;
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", id); // some browsers only start a drag with data set
+}
+document.addEventListener("dragend", () => {
+  drag.kind = drag.id = null;
+  document.querySelectorAll(".dragover").forEach((x) => x.classList.remove("dragover"));
+});
+
 function dragSort(el, id) {
-  el.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/module", id));
-  el.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("text/module")) { e.preventDefault(); el.classList.add("dragover"); } });
+  el.addEventListener("dragstart", (e) => startDrag(e, "module", id));
+  el.addEventListener("dragover", (e) => { if (drag.kind === "module") { e.preventDefault(); el.classList.add("dragover"); } });
   el.addEventListener("dragleave", () => el.classList.remove("dragover"));
   el.addEventListener("drop", (e) => {
-    e.preventDefault();
-    const from = e.dataTransfer.getData("text/module");
+    if (drag.kind !== "module") return;
+    e.preventDefault(); e.stopPropagation();
+    const from = drag.id;
+    if (!from || from === id) { renderModules(); return; }
     const ids = layoutIds().filter((i) => i !== from);
     ids.splice(ids.indexOf(id), 0, from);
     setLayout(ids);
@@ -626,8 +643,9 @@ function iconEditor(m) {
 
   function dropChip(target, cat, beforeKey) {
     return (e) => {
+      if (drag.kind !== "icon") return;
       e.preventDefault(); target.classList.remove("dragover");
-      const k = e.dataTransfer.getData("text/icon");
+      const k = drag.id;
       if (!k) return;
       if (catalog.icons[k].category === cat) delete move[k]; else move[k] = cat;
       const list = items.filter((x) => x !== k);
@@ -641,7 +659,7 @@ function iconEditor(m) {
       saveMove(); refresh();
     };
   }
-  const allowDrop = (el) => (e) => { if (e.dataTransfer.types.includes("text/icon")) { e.preventDefault(); el.classList.add("dragover"); } };
+  const allowDrop = (el) => (e) => { if (drag.kind === "icon") { e.preventDefault(); el.classList.add("dragover"); } };
 
   const moveCat = (cat, dir) => {
     const order = groups.map(([c]) => c), i = order.indexOf(cat), j = i + dir;
@@ -679,7 +697,7 @@ function iconEditor(m) {
           h("button", { class: is2x ? "on" : "", title: "Toggle 2x double width",
             onclick: () => { if (is2x) doubleItems.delete(k); else doubleItems.add(k); saveDoubles(); refresh(); } }, "2x"),
           h("button", { title: "Remove", onclick: () => { delete move[k]; doubleItems.delete(k); saveMove(); saveDoubles(); saveItems(items.filter((x) => x !== k)); refresh(); } }, "×"));
-        chip.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/icon", k));
+        chip.addEventListener("dragstart", (e) => { e.stopPropagation(); startDrag(e, "icon", k); });
         chip.addEventListener("dragover", allowDrop(chip));
         chip.addEventListener("dragleave", () => chip.classList.remove("dragover"));
         chip.addEventListener("drop", (e) => { e.stopPropagation(); dropChip(chip, cat, k)(e); });
