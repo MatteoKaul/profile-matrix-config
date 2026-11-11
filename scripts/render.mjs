@@ -10,7 +10,7 @@
 //
 // This file re-exports everything the build script and the editor need.
 import {
-  activityCard, bannerSvg, categoryRows, codeCard, counterSvg, dividerSvg, esc, feedCard,
+  CARD_W, activityCard, bannerSvg, categoryRows, codeCard, counterSvg, dividerSvg, esc, feedCard,
   followersCard, guestbookCard, heading, liveCard, nowCard, painter, personCard,
   placeholderCard, portfolioCard, projectCard, releaseCard, spokenCard, statsCard,
   steamCard, tile, timelineCard,
@@ -202,12 +202,19 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
   const p = painter(theme, fontOf(cfg.theme.font));
   const files = {}, blocks = [];
   const put = (path, svg) => { files[`assets/gen/${prefix}${path}`] = svg; return `assets/gen/${path}`; };
+  // Optional: assets.hits collects where icons / banner sit in each image, in README order, for the
+  // editor's interactive preview. Only the main pass records (the light pass draws the same layout).
+  const record = (entry) => { if (assets.hits && !prefix) assets.hits.push(entry); };
   const img = (src, alt, attrs) => `<img src="${src}" alt="${esc(alt)}" ${attrs} />`;
   const link = (url, html) => (url ? `<a href="${esc(url)}">${html}</a>` : html);
   // Wrapped in <p> so GitHub adds the usual paragraph spacing below images.
   const para = (html) => `<p>${html}</p>`;
-  const headingBlock = (m, title, small = false, key = "heading") =>
-    title ? para(img(put(`${m.id}/${key}.svg`, heading(p, theme, title, small)), title, 'width="100%"')) : "";
+  const headingBlock = (m, title, small = false, key = "heading", cat = null) => {
+    if (!title) return "";
+    const src = put(`${m.id}/${key}.svg`, heading(p, theme, title, small));
+    if (cat) record({ src, module: m.id, w: CARD_W, h: 0, hits: [{ type: "head", cat, x: 0, y: 0, w: CARD_W, h: 0 }] }); // h 0 = whole image
+    return para(img(src, title, 'width="100%"'));
+  };
   const join = (...parts) => parts.filter(Boolean).join("\n\n");
   const cardRow = (cards) => `<p>\n${cards.join("\n")}\n</p>`;
   const checkLink = (m, url, what) => {
@@ -252,14 +259,21 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
             o
           );
           blocks.push(join(o.style === "compact" ? headingBlock(m, o.title) : "",
-            ...rows.map((r, i) => para(img(put(`${m.id}/row-${i + 1}.svg`, r.svg), r.alt, 'width="100%"')))));
+            ...rows.map((r, i) => {
+              const src = put(`${m.id}/row-${i + 1}.svg`, r.svg);
+              record({ src, module: m.id, w: r.w, h: r.h, hits: r.hits });
+              return para(img(src, r.alt, 'width="100%"'));
+            })));
           break;
         }
         // Columns = 1: standalone SVG tiles
+        let cat = ""; // category of the tiles being emitted (for the preview's hit map)
         const tileImg = (k, isDouble = false) => {
           const t = tile(p, theme, catalog.icons[k], o.tile, isDouble, o.size / 132); // shown at size/132 px per unit
           const fileKey = isDouble ? `${k}-2x` : k;
-          return img(put(`tiles/${o.tile}-${o.size}/${fileKey}.svg`, t.svg), catalog.icons[k].label, `height="${Math.round((o.size * t.h) / 132)}"`);
+          const src = put(`tiles/${o.tile}-${o.size}/${fileKey}.svg`, t.svg);
+          record({ src, module: m.id, w: t.w, h: t.h, hits: [{ type: "icon", key: k, cat, x: 0, y: 0, w: t.w, h: t.h }] });
+          return img(src, catalog.icons[k].label, `height="${Math.round((o.size * t.h) / 132)}"`);
         };
         const row = (keys) => "<p>\n" + keys.map((k, idx) => {
           const isLastOdd = useAutoDouble && idx === keys.length - 1 && keys.length % 2 === 1;
@@ -267,11 +281,12 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
           return `  ${tileImg(k, isDouble)}`;
         }).join("\n") + "\n</p>";
         const parts = o.style === "compact" ? [headingBlock(m, o.title)] : [];
-        for (const [cat, keys] of groups) {
-          if (o.dissolve_single === "on" && groups.length === 1 && cat === "general") {
+        for (const [catKey, keys] of groups) {
+          cat = catKey;
+          if (o.dissolve_single === "on" && groups.length === 1 && catKey === "general") {
             parts.push(row(keys));
           } else {
-            parts.push(headingBlock(m, titleOf(cat), o.style === "compact", `cat-${cat}`), row(keys));
+            parts.push(headingBlock(m, titleOf(catKey), o.style === "compact", `cat-${catKey}`, catKey), row(keys));
           }
         }
         blocks.push(join(...parts));

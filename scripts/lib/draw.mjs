@@ -287,13 +287,15 @@ export function categoryRows(p, theme, groups, o) {
   return rows.map((row) => {
     // In unified mode (Mode A), if a row has fewer spans than o.columns (e.g. a wide category), keep uniform column widths unless full-row
     let xCursor = 0;
-    const cells = row.map(({ g: [title, icons], span }) => {
+    const hits = []; // where things are in this image (drawing units): the editor's preview drags and removes icons with it
+    const cells = row.map(({ g: [title, icons, catKey], span }) => {
       const cellW = span * unitColW + (span - 1) * GAP;
       const x0 = xCursor;
       xCursor += cellW + GAP;
 
       const pitch = Math.max(1.8, Math.min(3.0, (cellW - 28) / (p.unitWidth(title) + 2 * theme.dot * p.norm)));
       const label = p.text(p.truncate(title, pitch, cellW - 28), x0 + 14, 0, { pitch, fill: theme.fg });
+      hits.push({ type: "cat", cat: catKey, x: x0, y: 0, w: cellW, h: 0 }, { type: "head", cat: catKey, x: x0, y: 0, w: cellW, h: HEAD });
       const head = `<g transform="translate(${n(x0)} 0)">${surface(theme, cellW, HEAD, { withEdge: theme.outlined })}</g>` +
         `<g transform="translate(0 ${n((HEAD - label.h) / 2)})">${label.svg}</g>`;
 
@@ -320,6 +322,7 @@ export function categoryRows(p, theme, groups, o) {
           lineH = 0;
           slotsUsedInLine = 0;
         }
+        hits.push({ type: "icon", key, cat: catKey, x: n(x0 + x), y: n(y), w: n(w), h: n(h) });
         const svg = `<svg x="${n(x0 + x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" viewBox="0 0 ${t.w} ${t.h}">${t.body}</svg>`;
         x += w + TILE_GAP;
         lineH = Math.max(lineH, h);
@@ -329,7 +332,8 @@ export function categoryRows(p, theme, groups, o) {
       return { svg: head + tiles.join(""), h: y + lineH };
     });
     const height = Math.ceil(Math.max(...cells.map((c) => c.h)));
-    return { svg: svgDoc(CARD_W, height, cells.map((c) => c.svg).join("")), alt: row.map(({ g: [t] }) => t).join(" · ") };
+    hits.filter((x) => x.type === "cat").forEach((x) => { x.h = height; }); // a category's drop area reaches to the bottom of the row
+    return { svg: svgDoc(CARD_W, height, cells.map((c) => c.svg).join("")), alt: row.map(({ g: [t] }) => t).join(" · "), w: CARD_W, h: height, hits };
   });
 }
 

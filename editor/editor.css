@@ -242,3 +242,16 @@ main > * { min-width: 0; min-height: 0; }
 [draggable="true"] { -webkit-user-drag: element; user-select: none; -webkit-user-select: none; }
 .mod[draggable="true"], .chip { cursor: grab; }
 .mod[draggable="true"]:active, .chip:active { cursor: grabbing; }
+
+/* ---- controls laid over the preview iframe (previewTools in editor.js) ---- */
+.preview { position: relative; }
+#previewLayer { position: absolute; overflow: hidden; pointer-events: none; z-index: 2; }
+.pv-hit { position: absolute; box-sizing: border-box; border-radius: 8px; pointer-events: auto; }
+.pv-hit.pv-icon, .pv-hit.pv-head { cursor: grab; }
+.pv-hit.pv-icon:hover { outline: 1px dashed #4493f8; background: rgba(68, 147, 248, .16); }
+.pv-hit.pv-head:hover { outline: 1px dashed rgba(68, 147, 248, .7); }
+.pv-hit.over { outline: 2px solid #4493f8; background: rgba(68, 147, 248, .22); }
+.pv-hit .x { display: none; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; padding: 0; justify-content: center;
+  border-radius: 50%; border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 12px/1 var(--mono); cursor: pointer; }
+.pv-hit.pv-icon:hover .x { display: inline-flex; }
+.pv-hit .x:hover { background: #da3633; border-color: #da3633; }

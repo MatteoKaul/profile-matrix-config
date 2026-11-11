@@ -206,16 +206,63 @@ function renderModules() {
 /** HTML5 drag and drop between module rows. */
 // What is being dragged inside the editor. Kept here rather than in custom
 // dataTransfer types, which Safari does not reliably expose during dragover.
-const drag = { kind: null, id: null };
-function startDrag(e, kind, id) {
-  drag.kind = kind; drag.id = id;
+const drag = { kind: null, id: null, module: null };
+function startDrag(e, kind, id, module = null) {
+  drag.kind = kind; drag.id = id; drag.module = module;
   e.dataTransfer.effectAllowed = "move";
   e.dataTransfer.setData("text/plain", id); // some browsers only start a drag with data set
 }
+const clearDrag = () => { drag.kind = drag.id = drag.module = null; };
 document.addEventListener("dragend", () => {
-  drag.kind = drag.id = null;
+  clearDrag();
   document.querySelectorAll(".dragover").forEach((x) => x.classList.remove("dragover"));
 });
+
+// ---- icon arrangement: used by the options panel and by the preview ----
+// The arrangement lives in three settings: items (order), move (icon = category) and
+// order (category order). Writing any of them is what makes it a custom arrangement;
+// there is no separate mode to switch.
+const iconModule = (id) => cfg().modules.find((x) => x.id === id && x.type === "icons");
+const joinPairs = (obj) => Object.entries(obj).map(([a, b]) => `${a}=${b}`).join(", ");
+const iconsChanged = (id) => { if (state.selected === id) renderOptions(); };
+
+/** Put icon k into category cat, before beforeKey (or at the end of the category). */
+function moveIcon(id, k, cat, beforeKey = null) {
+  const m = iconModule(id), { catalog } = state;
+  if (!m || !catalog.icons[k] || k === beforeKey) return;
+  const key = (x) => `${id}.${x}`, items = R.splitList(m.opt.items), move = Object.fromEntries(R.splitPairs(m.opt.move));
+  const catOf = (x) => move[x] || catalog.icons[x].category;
+  if (catalog.icons[k].category === cat) delete move[k]; else move[k] = cat;
+  const list = items.filter((x) => x !== k);
+  let at = beforeKey ? list.indexOf(beforeKey) : -1;
+  if (at < 0) { const last = list.map(catOf).lastIndexOf(cat); at = last < 0 ? list.length : last + 1; }
+  list.splice(at, 0, k);
+  set(key("items"), list.join(", ")); set(key("move"), joinPairs(move));
+  iconsChanged(id);
+}
+
+/** Remove icon k from the module (and from its moves and 2x list). */
+function removeIcon(id, k) {
+  const m = iconModule(id);
+  if (!m) return;
+  const key = (x) => `${id}.${x}`, move = Object.fromEntries(R.splitPairs(m.opt.move));
+  delete move[k];
+  set(key("items"), R.splitList(m.opt.items).filter((x) => x !== k).join(", "));
+  set(key("move"), joinPairs(move));
+  set(key("double_items"), R.splitList(m.opt.double_items || "").filter((x) => x.toLowerCase() !== k).join(", "));
+  iconsChanged(id);
+}
+
+/** Put category cat before beforeCat (or last). */
+function moveCategory(id, cat, beforeCat = null) {
+  const m = iconModule(id);
+  if (!m || cat === beforeCat) return;
+  const order = R.iconGroups({ ...m.opt, dissolve_single: "keep" }, state.catalog).map(([c]) => c).filter((c) => c !== cat);
+  const at = beforeCat ? order.indexOf(beforeCat) : -1;
+  order.splice(at < 0 ? order.length : at, 0, cat);
+  set(`${id}.order`, order.join(", "));
+  iconsChanged(id);
+}
 
 function dragSort(el, id) {
   el.addEventListener("dragstart", (e) => startDrag(e, "module", id));
@@ -660,18 +707,7 @@ function iconEditor(m) {
     return (e) => {
       if (drag.kind !== "icon") return;
       e.preventDefault(); target.classList.remove("dragover");
-      const k = drag.id;
-      if (!k) return;
-      if (catalog.icons[k].category === cat) delete move[k]; else move[k] = cat;
-      const list = items.filter((x) => x !== k);
-      let at = beforeKey ? list.indexOf(beforeKey) : -1;
-      if (at < 0) {
-        const last = list.map(catOf).lastIndexOf(cat);
-        at = last < 0 ? list.length : last + 1;
-      }
-      list.splice(at, 0, k);
-      state.settings[key("items")] = list.join(", ");
-      saveMove(); refresh();
+      if (drag.id) moveIcon(m.id, drag.id, cat, beforeKey); // re-renders this panel
     };
   }
   const allowDrop = (el) => (e) => { if (drag.kind === "icon") { e.preventDefault(); el.classList.add("dragover"); } };
@@ -711,8 +747,8 @@ function iconEditor(m) {
           k,
           h("button", { class: is2x ? "on" : "", title: "Toggle 2x double width",
             onclick: () => { if (is2x) doubleItems.delete(k); else doubleItems.add(k); saveDoubles(); refresh(); } }, "2x"),
-          h("button", { title: "Remove", onclick: () => { delete move[k]; doubleItems.delete(k); saveMove(); saveDoubles(); saveItems(items.filter((x) => x !== k)); refresh(); } }, "×"));
-        chip.addEventListener("dragstart", (e) => { e.stopPropagation(); startDrag(e, "icon", k); });
+          h("button", { title: "Remove", onclick: () => removeIcon(m.id, k) }, "×"));
+        chip.addEventListener("dragstart", (e) => { e.stopPropagation(); startDrag(e, "icon", k, m.id); });
         chip.addEventListener("dragover", allowDrop(chip));
         chip.addEventListener("dragleave", () => chip.classList.remove("dragover"));
         chip.addEventListener("drop", (e) => { e.stopPropagation(); dropChip(chip, cat, k)(e); });
@@ -796,12 +832,98 @@ function previewBackground(c, light) {
   return /^#[0-9a-f]{3,8}$/i.test(bg) ? bg : PREVIEW_PAGES.github[light ? 1 : 0];
 }
 
+/**
+ * Makes the preview interactive without giving it scripts. The iframe stays sandboxed (a
+ * sandboxed document blocks every handler attached inside it), so the controls live in a layer
+ * of the editor page laid exactly over the iframe. Each control is placed from the position of
+ * the rendered image it belongs to (read through the same-origin frame) and follows scrolling
+ * and resizing. state.hits (from the renderer) says which image holds which icons, README order.
+ *   icons: drag a tile to move it (before another tile / to the end of a category), x removes it,
+ *          drag a heading to move the whole category
+ */
+let layerLoop = 0;
+function previewTools() {
+  cancelAnimationFrame(layerLoop);
+  const frame = $("#frame"), doc = frame.contentDocument;
+  let layer = $("#previewLayer");
+  if (!layer) { layer = h("div", { id: "previewLayer" }); $("#preview").append(layer); }
+  layer.replaceChildren();
+  if (!doc || !state.hits?.length) return;
+
+  const queues = new Map();
+  for (const e of state.hits) (queues.get(e.src) || queues.set(e.src, []).get(e.src)).push(e);
+  const placed = []; // {img, entry, hit, el}
+  for (const img of doc.querySelectorAll("img[data-gen]")) {
+    const entry = queues.get(img.dataset.gen)?.shift();
+    if (!entry?.hits) continue;
+    for (const hit of iconHits(entry)) { layer.append(hit.el); placed.push({ img, entry, ...hit }); }
+  }
+
+  let sig = "";
+  const loop = () => {
+    if (frame.contentDocument !== doc) return; // a new render replaced the page; its onload starts a new loop
+    const root = doc.documentElement;
+    const now = `${root.scrollTop}|${root.scrollHeight}|${frame.offsetLeft}|${frame.offsetTop}|${frame.clientWidth}|${frame.clientHeight}`;
+    if (now !== sig) {
+      sig = now;
+      Object.assign(layer.style, { left: `${frame.offsetLeft}px`, top: `${frame.offsetTop}px`, width: `${frame.clientWidth}px`, height: `${frame.clientHeight}px` });
+      for (const { img, entry, hit, el } of placed) {
+        const r = img.getBoundingClientRect(); // relative to the iframe viewport = to the layer
+        el.style.left = `${r.left + (hit.x / entry.w) * r.width}px`;
+        el.style.width = `${(hit.w / entry.w) * r.width}px`;
+        el.style.top = `${r.top + (hit.h ? (hit.y / entry.h) * r.height : 0)}px`;
+        el.style.height = `${hit.h ? (hit.h / entry.h) * r.height : r.height}px`; // h 0 = the whole image
+      }
+    }
+    layerLoop = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+/** Controls for the icons of one rendered image: [{hit, el}]. */
+function iconHits(entry) {
+  const id = entry.module, m = iconModule(id);
+  if (!m) return [];
+  const real = new Set(R.iconGroups({ ...m.opt, dissolve_single: "keep" }, state.catalog).map(([c]) => c));
+  return entry.hits.map((hit) => {
+    const el = h("div", { class: `pv-hit pv-${hit.type}` }); // pv- prefix: plain "cat" / "icon" are styled in the options panel
+
+    // what may be dropped here: icons into a real category, categories onto headings and category areas
+    const accepts = () => drag.module === id && real.has(hit.cat) &&
+      (drag.kind === "icon" ? drag.id !== hit.key : drag.kind === "cat" && hit.type !== "icon" && drag.id !== hit.cat);
+    el.addEventListener("dragover", (e) => { if (accepts()) { e.preventDefault(); el.classList.add("over"); } });
+    el.addEventListener("dragleave", () => el.classList.remove("over"));
+    el.addEventListener("drop", (e) => {
+      el.classList.remove("over");
+      if (!accepts()) return;
+      e.preventDefault();
+      const kind = drag.kind, dragged = drag.id;
+      clearDrag();
+      if (kind === "icon") moveIcon(id, dragged, hit.cat, hit.type === "icon" ? hit.key : null);
+      else moveCategory(id, dragged, hit.cat);
+    });
+
+    if (hit.type === "icon") {
+      el.draggable = true;
+      el.title = `${hit.key}: drag to move, × to remove`;
+      el.addEventListener("dragstart", (e) => startDrag(e, "icon", hit.key, id));
+      el.append(h("button", { class: "x", type: "button", title: `Remove ${hit.key}`,
+        onclick: (e) => { e.preventDefault(); e.stopPropagation(); removeIcon(id, hit.key); } }, "×"));
+    } else if (hit.type === "head" && real.has(hit.cat)) {
+      el.draggable = true;
+      el.title = "Drag to move this category, or drop an icon here";
+      el.addEventListener("dragstart", (e) => startDrag(e, "cat", hit.cat, id));
+    }
+    return { hit, el };
+  });
+}
+
 function showPreview(html, pageBg) {
   const frame = $("#frame"), y = frame.contentWindow?.scrollY || 0;
   frame.style.background = pageBg;
   frame.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><style>${PREVIEW_CSS}</style>` +
     `<body class="${$("#previewMode").value}" style="background:${pageBg}"><article class="readme">${html}</article></body>`;
-  frame.onload = () => frame.contentWindow.scrollTo(0, y); // keep the scroll position while editing
+  frame.onload = () => { frame.contentWindow.scrollTo(0, y); previewTools(); }; // keep the scroll position while editing
 }
 
 async function renderPreview() {
@@ -812,14 +934,16 @@ async function renderPreview() {
     const data = $("#dataSource").value === "sample" ? R.SAMPLE_DATA : state.githubData;
     await Promise.all(R.neededImages(c, data).map(image));
     const images = Object.fromEntries(Object.entries(state.images).filter(([, v]) => v));
-    const { files, readme } = R.render(c, data, { fonts: state.fonts, catalog: state.catalog, images });
+    const hits = [];
+    const { files, readme } = R.render(c, data, { fonts: state.fonts, catalog: state.catalog, images, hits });
+    state.hits = hits; // where icons sit in each image: the preview drags and removes them
     const light = $("#previewMode").value === "light";
     const counter = svgUrl(R.renderCounter(light && c.theme.mode !== "dark" ? c.light : c.theme, state.fonts[c.theme.font], 1234));
     const html = markdown(readme.replace(/^<!--.*?-->\n*/s, ""))
       // <picture>: GitHub picks by the viewer's theme, the preview by the Preview setting
       .replace(/<picture><source media="\(prefers-color-scheme: light\)" srcset="([^"]+)" \/>(<img src=")[^"]+("[^>]*>)<\/picture>/g,
         (tag, lightSrc, a, b) => (light ? a + lightSrc + b : tag.replace(/^<picture>.*?\/>|<\/picture>$/g, "")))
-      .replace(/src="(assets\/gen\/[^"]+)"/g, (_, path) => `src="${svgUrl(files[path])}"`)
+      .replace(/src="(assets\/gen\/[^"]+)"/g, (_, path) => `data-gen="${path.replace(/^assets\/gen\/light\//, "assets/gen/")}" src="${svgUrl(files[path])}"`)
       // external images (the visitor counter) cannot load here: a sample instead
       .replace(/src="https:\/\/[^"]*"/g, `src="${counter}"`);
     showPreview(html, previewBackground(c, light));

@@ -36,6 +36,12 @@ try {
   const ids = Object.keys(TYPES).map((t) => `m_${t}`);
   writeFileSync(join(tpl, "settings.txt"), [`layout = ${ids.join(", ")}`, ...Object.keys(TYPES).map((t) => `m_${t}.type = ${t}`)].join("\n"));
   run(["scripts/build.mjs", "--sample"], tpl);
+  // Icon layouts that the default settings do not reach: single tiles, column spans, doubles.
+  for (const extra of ["icons.columns = 1", "icons.columns = 1\nicons.tile = badge", "icons.columns = 3\nicons.double_mode = auto",
+    "icons.columns = 2\nicons.dissolve_single = more", "theme.card_fill = outline"]) {
+    writeFileSync(join(tpl, "settings.txt"), `layout = icons, about\nicons.items = javascript, typescript, python, linux, docker, git, steam\n${extra}\n`);
+    run(["scripts/build.mjs", "--sample"], tpl);
+  }
 
   const site = join(tmp, "site");
   run(["tools/export.mjs", "site", site, "0.0.0-check"]);
