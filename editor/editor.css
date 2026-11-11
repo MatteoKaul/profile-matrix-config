@@ -255,3 +255,8 @@ main > * { min-width: 0; min-height: 0; }
   border-radius: 50%; border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 12px/1 var(--mono); cursor: pointer; }
 .pv-hit.pv-icon:hover .x { display: inline-flex; }
 .pv-hit .x:hover { background: #da3633; border-color: #da3633; }
+.pv-hit .hide { display: none; position: absolute; top: 50%; right: 8px; transform: translateY(-50%); padding: 2px 9px; border-radius: 999px;
+  border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 600 11px/1.4 var(--mono); cursor: pointer; }
+.pv-hit.pv-head:hover .hide { display: block; }
+.pv-hit .hide:hover { background: #4493f8; }
+.cat.off { opacity: .55; border-style: dashed; }

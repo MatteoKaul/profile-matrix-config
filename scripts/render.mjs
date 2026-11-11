@@ -113,8 +113,9 @@ export function iconGroups(opt, catalog) {
   const badCat = [...splitList(opt.order), ...Object.values(move)].filter((c) => !/^[\w-]+$/.test(c));
   if (badCat.length) throw new Error(`icons: invalid category name(s) ${badCat.join(", ")}`);
   const order = [...new Set([...splitList(opt.order), ...Object.keys(catalog.categories), ...Object.values(move)])];
+  const hidden = new Set(splitList(opt.hidden || "")); // hidden categories: dropped before single-icon groups are merged
   const raw = order.map((cat) => [cat, items.filter((k) => (move[k] || catalog.icons[k].category) === cat)])
-    .filter(([, keys]) => keys.length);
+    .filter(([cat, keys]) => keys.length && !hidden.has(cat));
 
   const mode = opt.dissolve_single === "on" ? "more" : opt.dissolve_single === "off" ? "keep" : (opt.dissolve_single || "keep");
   if (mode === "hide") {

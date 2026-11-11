@@ -146,6 +146,8 @@ export const TYPES = {
         help: "icon=category pairs, e.g. wireguard=services" },
       { key: "order", label: "Category order", type: "list", default: "",
         help: "Categories listed first, in this order; the rest follow in catalog order" },
+      { key: "hidden", label: "Hidden categories", type: "list", default: "",
+        help: "Categories that are not shown, whatever number of icons they hold (the icons stay in items; the editor's Hide / Show buttons set this)" },
       { key: "titles", label: "Category headings", type: "pairs", default: "",
         help: "category=HEADING pairs to rename categories, e.g. os=SYSTEMS" },
     ],

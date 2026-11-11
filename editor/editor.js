@@ -253,11 +253,21 @@ function removeIcon(id, k) {
   iconsChanged(id);
 }
 
+/** Hide or show a whole category, whatever number of icons it holds. */
+function setCategoryHidden(id, cat, hide) {
+  const m = iconModule(id);
+  if (!m) return;
+  const list = R.splitList(m.opt.hidden || "").filter((c) => c !== cat);
+  if (hide) list.push(cat);
+  set(`${id}.hidden`, list.join(", "));
+  iconsChanged(id);
+}
+
 /** Put category cat before beforeCat (or last). */
 function moveCategory(id, cat, beforeCat = null) {
   const m = iconModule(id);
   if (!m || cat === beforeCat) return;
-  const order = R.iconGroups({ ...m.opt, dissolve_single: "keep" }, state.catalog).map(([c]) => c).filter((c) => c !== cat);
+  const order = R.iconGroups({ ...m.opt, dissolve_single: "keep", hidden: "" }, state.catalog).map(([c]) => c).filter((c) => c !== cat);
   const at = beforeCat ? order.indexOf(beforeCat) : -1;
   order.splice(at < 0 ? order.length : at, 0, cat);
   set(`${id}.order`, order.join(", "));
@@ -689,7 +699,8 @@ function iconEditor(m) {
   const titles = Object.fromEntries(R.splitPairs(o.titles));
   const doubleItems = new Set(R.splitList(o.double_items || "").map((x) => x.toLowerCase()));
   const colSpans = Object.fromEntries(R.splitPairs(o.col_spans || ""));
-  const groups = R.iconGroups({ ...o, dissolve_single: "keep" }, catalog);
+  const groups = R.iconGroups({ ...o, dissolve_single: "keep", hidden: "" }, catalog); // hidden groups stay listed here, to show them again
+  const hiddenCats = new Set(R.splitList(o.hidden || ""));
   const catOf = (k) => move[k] || catalog.icons[k].category;
 
   const saveItems = (list) => set(key("items"), list.join(", "));
@@ -732,13 +743,16 @@ function iconEditor(m) {
         }))
       : null;
 
-    const box = h("div", { class: "cat" },
+    const isHidden = hiddenCats.has(cat);
+    const box = h("div", { class: `cat${isHidden ? " off" : ""}` },
       h("div", { class: "cat-head" },
         h("button", { class: "icon-btn", title: "Move category up", onclick: () => moveCat(cat, -1) }, "↑"),
         h("button", { class: "icon-btn", title: "Move category down", onclick: () => moveCat(cat, 1) }, "↓"),
         h("input", { type: "text", value: titles[cat] || catalog.categories[cat] || cat.toUpperCase(), title: "Heading shown in the README",
           onchange: (e) => { titles[cat] = e.target.value === catalog.categories[cat] ? "" : e.target.value; saveTitles(); } }),
         spanControl,
+        h("button", { type: "button", class: "icon-btn", title: isHidden ? "Show this category again" : "Hide this category (the icons stay)",
+          onclick: () => setCategoryHidden(m.id, cat, !isHidden) }, isHidden ? "Show" : "Hide"),
         h("small", {}, keys.length === 1 && o.dissolve_single === "more" ? `${cat} (→ More)` : keys.length === 1 && o.dissolve_single === "hide" ? `${cat} (hidden)` : cat)),
       h("div", { class: "chips" }, keys.length ? keys.map((k) => {
         const is2x = doubleItems.has(k);
@@ -784,7 +798,7 @@ function iconEditor(m) {
   drawPicker();
 
   // All simple options; items / move / order / titles / double_items / col_spans are edited visually below.
-  const style = R.TYPES.icons.fields.filter((f) => !["items", "move", "order", "titles", "double_items", "col_spans"].includes(f.key))
+  const style = R.TYPES.icons.fields.filter((f) => !["items", "move", "order", "hidden", "titles", "double_items", "col_spans"].includes(f.key))
     .map((f) => field(f, o[f.key], (v) => set(key(f.key), v), m));
 
   return h("div", {},
@@ -913,6 +927,8 @@ function iconHits(entry) {
       el.draggable = true;
       el.title = "Drag to move this category, or drop an icon here";
       el.addEventListener("dragstart", (e) => startDrag(e, "cat", hit.cat, id));
+      el.append(h("button", { class: "hide", type: "button", title: "Hide this category (Show it again in the options)",
+        onclick: (e) => { e.preventDefault(); e.stopPropagation(); setCategoryHidden(id, hit.cat, true); } }, "Hide"));
     }
     return { hit, el };
   });
