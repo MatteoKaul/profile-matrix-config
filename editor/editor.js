@@ -253,6 +253,23 @@ function removeIcon(id, k) {
   iconsChanged(id);
 }
 
+/**
+ * Toggle the 2x size of one icon. Manual picks only count in the modes "manual" and "both", so
+ * picking one in "off" switches to manual and in "auto" to both (auto row fill + your picks).
+ */
+function toggleDouble(id, k) {
+  const m = iconModule(id);
+  if (!m) return;
+  const list = new Set(R.splitList(m.opt.double_items || "").map((x) => x.toLowerCase()));
+  if (list.has(k)) list.delete(k); else list.add(k);
+  set(`${id}.double_items`, [...list].join(", "));
+  if (list.size) {
+    if (m.opt.double_mode === "off") set(`${id}.double_mode`, "manual");
+    else if (m.opt.double_mode === "auto") set(`${id}.double_mode`, "both");
+  }
+  iconsChanged(id);
+}
+
 /** Hide or show a whole category, whatever number of icons it holds. */
 function setCategoryHidden(id, cat, hide) {
   const m = iconModule(id);
@@ -706,11 +723,6 @@ function iconEditor(m) {
   const saveItems = (list) => set(key("items"), list.join(", "));
   const saveMove = () => set(key("move"), Object.entries(move).map(([k, c]) => `${k}=${c}`).join(", "));
   const saveTitles = () => set(key("titles"), Object.entries(titles).filter(([, t]) => t).map(([c, t]) => `${c}=${t}`).join(", "));
-  const saveDoubles = () => {
-    const list = [...doubleItems];
-    set(key("double_items"), list.join(", "));
-    if (list.length && o.double_mode === "off") set(key("double_mode"), "manual");
-  };
   const saveSpans = () => set(key("col_spans"), Object.entries(colSpans).filter(([, v]) => Number(v) > 1).map(([c, v]) => `${c}=${v}`).join(", "));
   const refresh = () => { renderOptions(); };
 
@@ -760,7 +772,7 @@ function iconEditor(m) {
           title: move[k] ? `moved here from ${catalog.icons[k].category}` : `drag to reorder or move` },
           k,
           h("button", { class: is2x ? "on" : "", title: "Toggle 2x double width",
-            onclick: () => { if (is2x) doubleItems.delete(k); else doubleItems.add(k); saveDoubles(); refresh(); } }, "2x"),
+            onclick: () => toggleDouble(m.id, k) }, "2x"),
           h("button", { title: "Remove", onclick: () => removeIcon(m.id, k) }, "×"));
         chip.addEventListener("dragstart", (e) => { e.stopPropagation(); startDrag(e, "icon", k, m.id); });
         chip.addEventListener("dragover", allowDrop(chip));
@@ -919,8 +931,10 @@ function iconHits(entry) {
 
     if (hit.type === "icon") {
       el.draggable = true;
-      el.title = `${hit.key}: drag to move, × to remove`;
+      el.title = `${hit.key}: drag to move, 2x for double size, × to remove`;
       el.addEventListener("dragstart", (e) => startDrag(e, "icon", hit.key, id));
+      el.append(h("button", { class: "dbl", type: "button", title: `Toggle 2x size of ${hit.key}`,
+        onclick: (e) => { e.preventDefault(); e.stopPropagation(); toggleDouble(id, hit.key); } }, "2x"));
       el.append(h("button", { class: "x", type: "button", title: `Remove ${hit.key}`,
         onclick: (e) => { e.preventDefault(); e.stopPropagation(); removeIcon(id, hit.key); } }, "×"));
     } else if (hit.type === "head" && real.has(hit.cat)) {

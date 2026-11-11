@@ -303,30 +303,37 @@ export function categoryRows(p, theme, groups, o) {
       const singleW = (o.tile === "none" ? TILE_H : TILE_W) * scale;
       const colsPerLine = Math.max(1, Math.floor((cellW + TILE_GAP) / (singleW + TILE_GAP)));
 
-      // Determine which icons get double width (manual selection + optional auto-fill for odd rows)
-      let x = 0, y = HEAD + 8, lineH = 0, slotsUsedInLine = 0;
+      // Which icons are doubled: the manual picks, plus (auto) the last line filled up. Lines are packed
+      // first (a doubled tile takes 2 slots); the free slots of the last line are then used up by
+      // doubling its single tiles from the end. A line with 1 of 5 slots filled gets 2x on that tile.
+      const bigStyle = o.double_style === "large"; // large = 2x width AND height; wide = 2x width
+      const dbl = icons.map((icon) => useManualDouble && doubleSet.has((icon.key || "").toLowerCase()));
+      if (useAutoDouble && !bigStyle && colsPerLine >= 2) {
+        let line = [], used = 0;
+        icons.forEach((_, i) => {
+          const slots = dbl[i] ? 2 : 1;
+          if (used + slots > colsPerLine && line.length) { line = []; used = 0; }
+          line.push(i); used += slots;
+        });
+        let free = colsPerLine - used;
+        for (let j = line.length - 1; j >= 0 && free > 0; j--) if (!dbl[line[j]]) { dbl[line[j]] = true; free--; }
+      }
+
+      let x = 0, y = HEAD + 8, lineH = 0;
       const tiles = icons.map((icon, idx) => {
         const key = (icon.key || "").toLowerCase();
-        let isDouble = useManualDouble && doubleSet.has(key);
-        const isLast = idx === icons.length - 1;
-        if (!isDouble && useAutoDouble && isLast && colsPerLine >= 2 && (slotsUsedInLine % colsPerLine) === colsPerLine - 2) {
-          isDouble = true;
-        } else if (!isDouble && useAutoDouble && isLast && colsPerLine === 2 && slotsUsedInLine === 0 && icons.length % 2 === 1) {
-          isDouble = true;
-        }
-        const t = tileParts(p, theme, icon, o.tile, isDouble, scale); // drawn scaled: compensate radius and line
-        const w = Math.min(cellW, t.w * scale), h = t.h * scale;
+        const big = dbl[idx] && bigStyle, f = big ? 2 : 1;
+        const t = tileParts(p, theme, icon, o.tile, dbl[idx] && !bigStyle, scale * f); // drawn scaled: compensate radius and line
+        const w = Math.min(cellW, t.w * scale * f), h = t.h * scale * f;
         if (x > 0 && x + w > cellW + 0.5) {
           x = 0;
           y += lineH + TILE_GAP;
           lineH = 0;
-          slotsUsedInLine = 0;
         }
         hits.push({ type: "icon", key, cat: catKey, x: n(x0 + x), y: n(y), w: n(w), h: n(h) });
         const svg = `<svg x="${n(x0 + x)}" y="${n(y)}" width="${n(w)}" height="${n(h)}" viewBox="0 0 ${t.w} ${t.h}">${t.body}</svg>`;
         x += w + TILE_GAP;
         lineH = Math.max(lineH, h);
-        slotsUsedInLine += isDouble ? 2 : 1;
         return svg;
       });
       return { svg: head + tiles.join(""), h: y + lineH };

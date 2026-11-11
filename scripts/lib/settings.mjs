@@ -132,6 +132,8 @@ export const TYPES = {
         help: "keep = keep as own category | more = Dissolve into \"More\" (merge single-icon groups into a combined 'More' group) | hide = Hide categories containing only 1 icon" },
       { key: "double_mode", label: "Double-width (2x) mode", type: "select", options: ["off", "auto", "manual", "both"], default: "off",
         help: "off = normal width | auto = fill odd grid rows with 2x width | manual = only icons in double_items | both = manual + auto row fill" },
+      { key: "double_style", label: "2x style", type: "select", options: ["wide", "large"], default: "wide",
+        help: "wide = a 2x icon is twice as wide, same height (auto fills rows with it) | large = twice as big in width and height, with a bigger logo and label (auto fill does not apply)" },
       { key: "double_items", label: "Double-width icons", type: "list", default: "",
         help: "Icons rendered at 2x width (in manual/both mode or granular continuity), e.g. docker, linux" },
       { key: "col_spans", label: "Category column spans (granular)", type: "pairs", default: "",

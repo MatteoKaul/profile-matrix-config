@@ -260,3 +260,6 @@ main > * { min-width: 0; min-height: 0; }
 .pv-hit.pv-head:hover .hide { display: block; }
 .pv-hit .hide:hover { background: #4493f8; }
 .cat.off { opacity: .55; border-style: dashed; }
+.pv-hit .dbl { display: none; position: absolute; top: 3px; left: 3px; height: 18px; padding: 0 6px; border-radius: 999px;
+  border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 10px/1 var(--mono); cursor: pointer; }
+.pv-hit.pv-icon:hover .dbl { display: block; } .pv-hit .dbl:hover { background: #4493f8; }

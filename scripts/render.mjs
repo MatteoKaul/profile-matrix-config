@@ -270,14 +270,16 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
         // Columns = 1: standalone SVG tiles
         let cat = ""; // category of the tiles being emitted (for the preview's hit map)
         const tileImg = (k, isDouble = false) => {
-          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble, o.size / 132); // shown at size/132 px per unit
-          const fileKey = isDouble ? `${k}-2x` : k;
+          const large = isDouble && o.double_style === "large"; // 2x width and height instead of 2x width
+          const f = large ? 2 : 1;
+          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble && !large, (o.size / 132) * f); // shown at size/132 px per unit
+          const fileKey = isDouble ? `${k}-${large ? "big" : "2x"}` : k;
           const src = put(`tiles/${o.tile}-${o.size}/${fileKey}.svg`, t.svg);
           record({ src, module: m.id, w: t.w, h: t.h, hits: [{ type: "icon", key: k, cat, x: 0, y: 0, w: t.w, h: t.h }] });
-          return img(src, catalog.icons[k].label, `height="${Math.round((o.size * t.h) / 132)}"`);
+          return img(src, catalog.icons[k].label, `height="${Math.round((o.size * f * t.h) / 132)}"`);
         };
         const row = (keys) => "<p>\n" + keys.map((k, idx) => {
-          const isLastOdd = useAutoDouble && idx === keys.length - 1 && keys.length % 2 === 1;
+          const isLastOdd = useAutoDouble && o.double_style !== "large" && idx === keys.length - 1 && keys.length % 2 === 1;
           const isDouble = (useManualDouble && doubleSet.has(k)) || isLastOdd;
           return `  ${tileImg(k, isDouble)}`;
         }).join("\n") + "\n</p>";
