@@ -102,8 +102,9 @@ dimmed, high contrast, the card colour or any custom colour (remembered in the
 browser only). On github.com the page always has GitHub's own colour; for a
 seamless look there, set `theme.card_fill = none` (transparent cards, best
 with `theme.mode = auto`), or `outline` (transparent cards with an outline in
-`theme.outline` = auto: foreground at 40 % opacity, or a custom
-`theme.outline_color`, `theme.outline_width` 1-3 px) so modules stay
+`theme.outline_color` = auto: the font colour slightly dimmed (60 %
+opacity), following it until you pick a colour; `theme.outline_width`
+0.5-3 px, default 0.75) so modules stay
 separated on any page colour.
 
 "Data: Sample data" previews modules that need fetched data (projects,

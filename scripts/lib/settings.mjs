@@ -37,10 +37,11 @@ export const THEME_FIELDS = [
     help: "solid = cards filled with the card background | none = transparent cards on GitHub's own page background\n" +
       "outline = transparent cards with a visible outline (colour below), so modules stay apart on any page colour.\n" +
       "With none and outline a banner without image is transparent, too" },
-  { key: "outline", label: "Outline colour", type: "select", options: ["auto", "custom"], default: "auto",
-    help: "Only with card fill = outline. auto = the foreground colour at 40 % opacity (works on any background) | custom = colour below" },
-  { key: "outline_color", label: "Outline: custom colour", type: "color", default: "#ffffff", help: "Used with outline = custom" },
-  { key: "outline_width", label: "Outline width", type: "number", min: 1, max: 3, step: 0.5, default: 1, help: "Line width in px (card fill = outline)" },
+  { key: "outline_color", label: "Outline colour", type: "color", auto: true, default: "auto",
+    help: "Only with card fill = outline. auto = the font colour, slightly dimmed (follows it when you change colours);\n" +
+      "pick a colour to set it yourself, \"Auto\" switches back" },
+  { key: "outline_width", label: "Outline thickness", type: "number", min: 0.5, max: 3, step: 0.25, default: 0.75,
+    help: "Line width in px on screen (card fill = outline); the same on every card, heading and the banner" },
   { key: "border", label: "Border", type: "color", default: "#2a2a2a", help: "Card outline" },
   { key: "palette", label: "Palette", type: "select", options: ["manual", "auto"], default: "manual",
     help: "manual = use every colour as set | auto = only fg and bg (and light_fg / light_bg) are used, the others are mixed from them by contrast" },
@@ -499,13 +500,17 @@ export function resolve(settings) {
   const light = { ...theme, fg: theme.light_fg, muted: theme.light_muted, faint: theme.light_faint,
     dim: theme.light_dim, bg: theme.light_bg, border: theme.light_border };
   if (theme.palette === "auto") for (const t of [theme, light]) Object.assign(t, derivePalette(t.fg, t.bg, theme.contrast / 100));
+  // Outline colour: auto follows fg (dimmed) until a colour is set. v1.2.1/1.2.2 files also have
+  // "theme.outline = auto | custom" next to a default outline_color; that choice still counts.
+  const outlineManual = theme.outline_color !== "auto" && settings["theme.outline"] !== "auto";
   // What cards are filled with; bg itself stays a colour (palette mixing, knock-outs like timeline dots).
   for (const t of [theme, light]) {
     t.fill = theme.card_fill === "solid" ? t.bg : "none";
     // edge = the line around cards; outline mode draws it also around headings and the banner
     t.outlined = theme.card_fill === "outline";
     t.edge = !t.outlined ? { color: t.border, opacity: 1, width: 1 }
-      : { color: theme.outline === "custom" ? theme.outline_color : t.fg, opacity: theme.outline === "custom" ? 1 : 0.4, width: theme.outline_width };
+      : outlineManual ? { color: theme.outline_color, opacity: 1, width: theme.outline_width }
+        : { color: t.fg, opacity: OUTLINE_AUTO_OPACITY, width: theme.outline_width };
   }
 
   const layoutIds = settings.layout !== undefined ? splitList(settings.layout) : DEFAULT_LAYOUT;
@@ -530,6 +535,15 @@ export function resolve(settings) {
   });
   const byId = Object.fromEntries(modules.map((m) => [m.id, m]));
   return { theme, light, layout: layoutIds.map((id) => byId[id]), modules };
+}
+
+/** Opacity of the automatic outline: the font colour, slightly dimmed. */
+export const OUTLINE_AUTO_OPACITY = 0.6;
+
+/** The automatic outline as a solid colour on a background (for the editor's colour swatch). */
+export function outlineAutoHex(fg, bg) {
+  const a = rgb(fg), b = rgb(bg);
+  return "#" + a.map((v, i) => Math.round(v * OUTLINE_AUTO_OPACITY + b[i] * (1 - OUTLINE_AUTO_OPACITY)).toString(16).padStart(2, "0")).join("");
 }
 
 /** "#rrggbb" / "#rgb" (an alpha part is ignored) -> [r, g, b] */
@@ -559,6 +573,7 @@ function convert(field, value, name) {
       return Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, num));
     }
     case "color":
+      if (field.auto && value === "auto") return "auto"; // follows another colour (outline_color)
       return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value) ? value : fail("use a hex colour like #ffffff");
     case "select": {
       // Backwards-compatible aliases for dissolve_single ("off" -> "keep", "on" -> "more")

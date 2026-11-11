@@ -344,9 +344,26 @@ function field(f, value, onChange, module) {
       break;
     }
     case "color": {
-      const pick = h("input", { type: "color", value: String(value).slice(0, 7) });
-      const txt = h("input", { type: "text", value, placeholder: "#rrggbb or rgb(r,g,b)" });
+      // auto colours (outline_color) show what auto means right now; picking a colour makes it manual
+      const autoHex = () => { const t = cfg().theme; return R.outlineAutoHex(t.fg, t.bg); };
+      const isAuto = f.auto && (value === "auto" || value == null || value === "");
+      const pick = h("input", { type: "color", value: isAuto ? autoHex() : String(value).slice(0, 7) });
+      const txt = h("input", { type: "text", value: isAuto ? "auto" : value, placeholder: f.auto ? "auto or #rrggbb" : "#rrggbb or rgb(r,g,b)" });
       pick.oninput = () => { txt.value = pick.value; onChange(pick.value); };
+      if (f.auto) {
+        const reset = h("button", { type: "button", title: "Follow the font colour again", onclick: () => {
+          txt.value = "auto"; pick.value = autoHex(); onChange("auto");
+        } }, "Auto");
+        txt.onchange = () => {
+          if (txt.value.trim().toLowerCase() === "auto" || !txt.value.trim()) { txt.value = "auto"; pick.value = autoHex(); onChange("auto"); return; }
+          const hex = normalizeColorInput(txt.value);
+          txt.value = hex;
+          if (/^#[0-9a-f]{6}$/i.test(hex)) pick.value = hex;
+          onChange(hex);
+        };
+        input = h("div", { class: "row" }, pick, txt, reset);
+        break;
+      }
       txt.onchange = () => {
         const hex = normalizeColorInput(txt.value);
         txt.value = hex;

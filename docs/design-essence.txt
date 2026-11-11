@@ -58,7 +58,8 @@ Editor: page padding 12, panel padding 16, gap 12 between panels and fields,
 5. SURFACES, CORNERS, OUTLINES, DEPTH
 -------------------------------------
 Card fill: solid (bg + 1 px border) | none (transparent) | outline (transparent
-+ outline: auto = fg at 40 %, or a custom colour, 1-3 px).
++ outline: auto = font colour at 60 % opacity until a colour is picked,
+0.5-3 px, default 0.75 px).
 Corner and line rules (scripts/lib/draw.mjs "surfaces"):
   1. One radius R (theme.radius, default 12) and one line width for every
      top-level surface, measured ON SCREEN. Each image is shown at its own
