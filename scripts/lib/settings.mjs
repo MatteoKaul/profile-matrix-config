@@ -33,10 +33,14 @@ export const THEME_FIELDS = [
   { key: "faint", label: "Faint", type: "color", default: "#7a7a7a", help: "Placeholders and hints" },
   { key: "dim", label: "Dim", type: "color", default: "#2c2c2c", help: "Inactive dots (bars, activity grid)" },
   { key: "bg", label: "Card background", type: "color", default: "#000000", help: "Background of all cards and bars" },
-  { key: "card_fill", label: "Card fill", type: "select", options: ["solid", "none"], default: "solid",
-    help: "solid = cards are filled with the card background | none = transparent cards: text and dots sit directly on\n" +
-      "GitHub's own page background, so the profile looks seamless in every GitHub theme (best with mode = auto).\n" +
-      "A banner without image is transparent then, too" },
+  { key: "card_fill", label: "Card fill", type: "select", options: ["solid", "none", "outline"], default: "solid",
+    help: "solid = cards filled with the card background | none = transparent cards on GitHub's own page background\n" +
+      "outline = transparent cards with a visible outline (colour below), so modules stay apart on any page colour.\n" +
+      "With none and outline a banner without image is transparent, too" },
+  { key: "outline", label: "Outline colour", type: "select", options: ["auto", "custom"], default: "auto",
+    help: "Only with card fill = outline. auto = the foreground colour at 40 % opacity (works on any background) | custom = colour below" },
+  { key: "outline_color", label: "Outline: custom colour", type: "color", default: "#ffffff", help: "Used with outline = custom" },
+  { key: "outline_width", label: "Outline width", type: "number", min: 1, max: 3, step: 0.5, default: 1, help: "Line width in px (card fill = outline)" },
   { key: "border", label: "Border", type: "color", default: "#2a2a2a", help: "Card outline" },
   { key: "palette", label: "Palette", type: "select", options: ["manual", "auto"], default: "manual",
     help: "manual = use every colour as set | auto = only fg and bg (and light_fg / light_bg) are used, the others are mixed from them by contrast" },
@@ -496,7 +500,13 @@ export function resolve(settings) {
     dim: theme.light_dim, bg: theme.light_bg, border: theme.light_border };
   if (theme.palette === "auto") for (const t of [theme, light]) Object.assign(t, derivePalette(t.fg, t.bg, theme.contrast / 100));
   // What cards are filled with; bg itself stays a colour (palette mixing, knock-outs like timeline dots).
-  for (const t of [theme, light]) t.fill = theme.card_fill === "none" ? "none" : t.bg;
+  for (const t of [theme, light]) {
+    t.fill = theme.card_fill === "solid" ? t.bg : "none";
+    // edge = the line around cards; outline mode draws it also around headings and the banner
+    t.outlined = theme.card_fill === "outline";
+    t.edge = !t.outlined ? { color: t.border, opacity: 1, width: 1 }
+      : { color: theme.outline === "custom" ? theme.outline_color : t.fg, opacity: theme.outline === "custom" ? 1 : 0.4, width: theme.outline_width };
+  }
 
   const layoutIds = settings.layout !== undefined ? splitList(settings.layout) : DEFAULT_LAYOUT;
   const ids = [...new Set([...layoutIds, ...Object.keys(settings)
