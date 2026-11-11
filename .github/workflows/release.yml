@@ -28,8 +28,7 @@ on:
         options: [auto, patch, minor, major]
         default: auto
 
-permissions:
-  contents: write
+permissions: {} # each job asks for what it needs
 
 concurrency:
   group: release
@@ -39,29 +38,35 @@ jobs:
   release:
     if: github.repository == 'MatteoKaul/profile-matrix-config'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # tag + GitHub release here
     outputs:
       version: ${{ steps.semver.outputs.version }}
     steps:
       # Pinned to exact commits, so a moved tag cannot run other code.
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+          persist-credentials: false # the token is only handed to the steps that push
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Check
         run: node tools/check.mjs
 
       - name: Next version
         id: semver
+        env:
+          BUMP: ${{ inputs.bump || 'auto' }}
         run: |
           last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
           range=${last:+$last..HEAD}
           msgs=$(git log ${range:-HEAD} --format='%s%n%b')
           IFS=. read -r major minor patch <<< "${last#v}"
           major=${major:-0} minor=${minor:-0} patch=${patch:-0}
-          bump="${{ inputs.bump || 'auto' }}"
+          bump="$BUMP"
           if [ "$bump" = major ] || echo "$msgs" | grep -Eq '^[a-z]+(\([^)]*\))?!:|^BREAKING CHANGE'; then major=$((major+1)) minor=0 patch=0
           elif [ "$bump" = minor ] || echo "$msgs" | grep -Eq '^feat(\([^)]*\))?:'; then minor=$((minor+1)) patch=0
           elif [ "$bump" = patch ] || echo "$msgs" | grep -Eq '^(fix|perf|refactor)(\([^)]*\))?:'; then patch=$((patch+1))
@@ -72,7 +77,9 @@ jobs:
 
       - name: Build site
         if: steps.semver.outputs.version
-        run: node tools/export.mjs site _site "${{ steps.semver.outputs.version }}"
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: node tools/export.mjs site _site "$VERSION"
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         if: steps.semver.outputs.version
@@ -108,7 +115,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.semver.outputs.version }}
         run: |
-          git tag "v$VERSION" && git push origin "v$VERSION"
+          git tag "v$VERSION"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push origin "v$VERSION"
           gh release create "v$VERSION" --title "v$VERSION" --generate-notes
 
   pages:
