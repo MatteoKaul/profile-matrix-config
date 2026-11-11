@@ -87,6 +87,13 @@ and open <http://localhost:8000/editor/> (it reads `../scripts`, `../fonts`,
 `../settings.txt` or `../default.settings.txt`, and `../data/` if present;
 without data it uses sample data).
 
+In the preview, icons can be edited directly: hover an icon for 2x, link and
+x (remove); drag an icon onto another icon or onto a category; drag a heading
+onto another to reorder categories, or use its Hide button. The preview
+iframe stays sandboxed without scripts, so these controls are a layer of the
+editor page over the iframe, placed from the position of each rendered image
+(the renderer returns a hit map via `assets.hits`).
+
 Left: modules (drag to reorder, checkbox to show/hide, "+ Add" for a new one)
 and the theme. Middle: options of the selected item. Right: live preview,
 rendered with the same code as the real build.
@@ -204,6 +211,12 @@ and an imprint link via a links module: `imprint=https://example.com/impressum|I
 
 ### Banner
 
+- **Section of a large photo:** `banner.zoom` (100-400 %, 100 = the photo fills
+  the banner width), `banner.position_x` and `banner.position` (0-100 % of the
+  overflow, horizontal and vertical). In the editor preview drag the banner to
+  move the photo and Alt / Ctrl / Cmd + scroll (or the +/- buttons) to zoom;
+  Reset restores the defaults. The geometry is `bannerImageBox` in draw.mjs,
+  shared with the editor.
 - `banner.image`: a file in `assets/src/` or `none` (then `banner.color`).
   Images (png, jpg, webp) are shown still; **GIFs and animated WebPs play**
   inside the banner (greyscale and brightness are applied live). **Videos**
@@ -270,6 +283,15 @@ a public repo / release.
 `icons.order` puts categories first, `icons.titles` renames headings. The
 order of icons inside a category follows `icons.items`. In the editor all of
 this is drag and drop. Only categories with at least one icon are shown.
+There is no separate "custom mode": writing `items` / `move` / `order` is the
+custom arrangement. `icons.hidden` hides whole categories (any number of
+icons; they stay in `items`). `icons.links` (`icon=https://...`) makes an
+icon a link; an image holds only one link, so in a grid layout a category
+with linked icons is drawn as its own full-width block of single tiles.
+`icons.double_style`: `wide` (2x width) or `large` (2x width and height).
+Auto mode (`double_mode = auto`) packs the lines and doubles single tiles at
+the end of the last line until it is full; manual picks only count in the
+modes `manual` and `both` (the editor switches `auto` to `both` for you).
 
 Layout options:
 

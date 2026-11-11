@@ -77,7 +77,11 @@ export const TYPES = {
         help: "File in assets/src, or none. Images: png, jpg, webp. Animated: gif, animated webp.\n" +
           "Videos (mp4, webm, mov) are turned into an animated webp by the workflow (needs ffmpeg locally)" },
       { key: "color", label: "Background colour", type: "color", default: "#111111", help: "Used when image = none" },
-      { key: "position", label: "Image position", type: "number", min: 0, max: 100, step: 1, default: 30,
+      { key: "zoom", label: "Image zoom (%)", type: "number", min: 100, max: 400, step: 1, default: 100,
+        help: "100 = the photo fills the banner width | more = zoom in. In the editor preview: drag the banner to move, Alt + scroll to zoom" },
+      { key: "position_x", label: "Image position horizontal", type: "number", min: 0, max: 100, step: 1, default: 50,
+        help: "Which part of a zoomed photo is shown, 0 = left, 100 = right" },
+      { key: "position", label: "Image position vertical", type: "number", min: 0, max: 100, step: 1, default: 30,
         help: "Which part of the photo is shown, 0 = top, 100 = bottom" },
       { key: "brightness", label: "Image brightness", type: "number", min: 0, max: 100, step: 1, default: 42,
         help: "Reference: 30 = dark | 42 = default | 70 = bright" },

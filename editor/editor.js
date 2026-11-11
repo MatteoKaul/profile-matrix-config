@@ -905,8 +905,16 @@ function previewTools() {
   for (const img of doc.querySelectorAll("img[data-gen]")) {
     const entry = queues.get(img.dataset.gen)?.shift();
     if (!entry?.hits) continue;
+    if (entry.banner) { const b = bannerControl(entry); if (b) { layer.append(b.el); placed.push({ img, entry, hit: { x: 0, y: 0, w: entry.w, h: entry.h }, el: b.el, banner: b }); } continue; }
     for (const hit of iconHits(entry)) { layer.append(hit.el); placed.push({ img, entry, ...hit }); }
   }
+  // The layer sits over the iframe, so the wheel would not scroll the page below it: pass it on.
+  // (Alt / Ctrl / Cmd + wheel over the banner zooms instead; the banner control handles that itself.)
+  layer.onwheel = (e) => {
+    if (e.target.closest?.(".pv-banner") && (e.altKey || e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    frame.contentWindow.scrollBy(e.deltaX, e.deltaY);
+  };
 
   let sig = "";
   const loop = () => {
@@ -916,8 +924,9 @@ function previewTools() {
     if (now !== sig) {
       sig = now;
       Object.assign(layer.style, { left: `${frame.offsetLeft}px`, top: `${frame.offsetTop}px`, width: `${frame.clientWidth}px`, height: `${frame.clientHeight}px` });
-      for (const { img, entry, hit, el } of placed) {
+      for (const { img, entry, hit, el, banner } of placed) {
         const r = img.getBoundingClientRect(); // relative to the iframe viewport = to the layer
+        if (banner) banner.shownWidth = r.width;
         el.style.left = `${r.left + (hit.x / entry.w) * r.width}px`;
         el.style.width = `${(hit.w / entry.w) * r.width}px`;
         el.style.top = `${r.top + (hit.h ? (hit.y / entry.h) * r.height : 0)}px`;
@@ -927,6 +936,64 @@ function previewTools() {
     layerLoop = requestAnimationFrame(loop);
   };
   loop();
+}
+
+/**
+ * The banner photo in the preview: drag to move it, Alt/Ctrl/Cmd + wheel (or the buttons) to zoom.
+ * Writes banner.position_x / position / zoom; the geometry is the renderer's own (bannerImageBox),
+ * so what you see while dragging is what the build draws. Window-level listeners keep a drag alive
+ * when the preview re-renders under the pointer.
+ */
+function bannerControl(entry) {
+  const id = entry.module, m = cfg().modules.find((x) => x.id === id && x.type === "banner");
+  if (!m) return null;
+  const ctl = { shownWidth: 0 };
+  const view = () => { const o = cfg().modules.find((x) => x.id === id).opt; return { o, box: R.bannerImageBox(o, entry.banner.iw, entry.banner.ih, entry.w, entry.h) }; };
+  const put = (key, v) => set(`${id}.${key}`, String(Math.round(Math.min(100, Math.max(0, v)))));
+  const perUnit = () => entry.w / (ctl.shownWidth || entry.w); // banner units per screen pixel
+
+  /** New zoom, keeping the image point at banner position (cx, cy) (units) where it is. */
+  function zoomTo(z, cx = entry.w / 2, cy = entry.h / 2) {
+    const { o, box } = view();
+    z = Math.min(400, Math.max(100, Math.round(z)));
+    const next = R.bannerImageBox({ ...o, zoom: z }, entry.banner.iw, entry.banner.ih, entry.w, entry.h);
+    const u = (cx - box.x) / box.w, v = (cy - box.y) / box.h; // the image point under the cursor, 0-1
+    const nx = cx - u * next.w, ny = cy - v * next.h;
+    set(`${id}.zoom`, z === 100 ? "" : String(z));
+    if (next.overflowX > 0) put("position_x", (-nx / next.overflowX) * 100); else set(`${id}.position_x`, "");
+    if (next.overflowY > 0) put("position", (-ny / next.overflowY) * 100);
+  }
+
+  const el = h("div", { class: "pv-banner", title: "Drag to move the photo, Alt + scroll to zoom" },
+    h("div", { class: "pv-bar" },
+      h("button", { type: "button", title: "Zoom out", onclick: (e) => { e.stopPropagation(); zoomTo(view().o.zoom - 10); } }, "−"),
+      h("span", {}, "Drag · Alt+scroll"),
+      h("button", { type: "button", title: "Zoom in", onclick: (e) => { e.stopPropagation(); zoomTo(view().o.zoom + 10); } }, "+"),
+      h("button", { type: "button", title: "Back to zoom 100 and the default position",
+        onclick: (e) => { e.stopPropagation(); for (const k of ["zoom", "position_x", "position"]) set(`${id}.${k}`, ""); } }, "Reset")));
+  const bar = el.firstChild;
+
+  el.addEventListener("pointerdown", (e) => {
+    if (bar.contains(e.target) || e.button !== 0) return;
+    e.preventDefault();
+    const { o, box } = view(), k = perUnit(), x0 = e.clientX, y0 = e.clientY;
+    const p0 = { x: o.position_x ?? 50, y: o.position };
+    el.classList.add("dragging");
+    const move = (ev) => {
+      // the photo follows the pointer: moving it right shows more of its left side (position_x falls)
+      if (box.overflowX > 0) put("position_x", p0.x - ((ev.clientX - x0) * k / box.overflowX) * 100);
+      if (box.overflowY > 0) put("position", p0.y - ((ev.clientY - y0) * k / box.overflowY) * 100);
+    };
+    const up = () => { removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up); el.classList.remove("dragging"); };
+    addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
+  });
+  el.addEventListener("wheel", (e) => {
+    if (!(e.altKey || e.ctrlKey || e.metaKey)) return; // plain wheel scrolls the page (see previewTools)
+    e.preventDefault();
+    const r = el.getBoundingClientRect(), k = perUnit();
+    zoomTo(view().o.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08), (e.clientX - r.left) * k, (e.clientY - r.top) * k);
+  }, { passive: false });
+  return Object.assign(ctl, { el });
 }
 
 /** Controls for the icons of one rendered image: [{hit, el}]. */

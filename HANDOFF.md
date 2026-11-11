@@ -41,6 +41,9 @@ look (also for other projects): [docs/design-essence.txt](docs/design-essence.tx
       whether to let weights drift with prices between settings changes
       (closer to a real buy-and-hold depot).
 - [ ] Template copies do not update themselves (sync workflow or versioned action).
+- [ ] Preview controls only tested in Chromium (HTML5 drag and drop inside a
+      sandboxed iframe layer); owner checks Safari. ChatGPT and Grok icons are
+      neutral stand-ins (not in Simple Icons).
 - [ ] Editor: ZIP download with settings.txt + used images from `assets/src/`.
 - [ ] Module 4: `username` / `display_name` override (`auto` = repo owner).
 - [ ] Module 6: issue forms, PR template, CODEOWNERS, CONTRIBUTING, SECURITY,

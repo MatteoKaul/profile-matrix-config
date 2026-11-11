@@ -20,7 +20,7 @@ import { MEDIA_FILE, isVideo, splitList, splitPairs, splitPeople, splitPortfolio
 const LINK = /^(https?:\/\/|mailto:)/i; // allowed link targets in the README
 
 export * from "./lib/settings.mjs";
-export { imageSize, renderLabel, renderTile } from "./lib/draw.mjs";
+export { bannerImageBox, imageSize, renderLabel, renderTile } from "./lib/draw.mjs";
 
 /** A visitor counter badge as SVG (tools/counter/server.mjs, editor preview). */
 export const renderCounter = (theme, font, count, label) => counterSvg(painter(theme, font), theme, count, label);
@@ -237,7 +237,9 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
         const t = adapt ? theme : cfg.theme;
         const bStyle = o.style && o.style !== "theme" ? o.style : t.style;
         const svg = bannerSvg(painter(t, fontOf(o.font === "theme" ? cfg.theme.font : o.font), bStyle), t, o, image, adapt);
-        blocks.push(`<p align="center">\n  ${img(put(`${m.id}/banner.svg`, svg), o.title || "Banner", 'width="100%"')}\n</p>`);
+        const bannerSrc = put(`${m.id}/banner.svg`, svg);
+        if (image) record({ src: bannerSrc, module: m.id, w: 1600, h: 420, hits: [], banner: { iw: image.width, ih: image.height } }); // the preview pans and zooms it
+        blocks.push(`<p align="center">\n  ${img(bannerSrc, o.title || "Banner", 'width="100%"')}\n</p>`);
         break;
       }
       case "text":

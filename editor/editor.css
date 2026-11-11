@@ -266,3 +266,13 @@ main > * { min-width: 0; min-height: 0; }
 .pv-hit .lnk { display: none; position: absolute; bottom: 3px; left: 3px; height: 18px; padding: 0 6px; border-radius: 999px;
   border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 10px/1 var(--mono); cursor: pointer; }
 .pv-hit.pv-icon:hover .lnk, .pv-hit .lnk.on { display: block; } .pv-hit .lnk.on { background: #4493f8; } .pv-hit .lnk:hover { background: #4493f8; }
+
+/* ---- banner pan / zoom control over the preview ---- */
+.pv-banner { position: absolute; cursor: grab; touch-action: none; border-radius: 12px; pointer-events: auto; }
+.pv-banner:hover, .pv-banner.dragging { outline: 1px dashed #4493f8; }
+.pv-banner.dragging { cursor: grabbing; }
+.pv-banner .pv-bar { display: none; position: absolute; top: 8px; left: 50%; transform: translateX(-50%); align-items: center; gap: 6px; padding: 3px 6px;
+  border-radius: 999px; background: rgba(13, 17, 23, .92); border: 1px solid #4493f8; color: #fff; font: 600 11px/1 var(--mono); white-space: nowrap; cursor: default; }
+.pv-banner:hover .pv-bar { display: flex; }
+.pv-banner .pv-bar button { height: 20px; min-width: 20px; padding: 0 7px; border-radius: 999px; border: 1px solid #4493f8; background: transparent; color: #fff; font: inherit; cursor: pointer; }
+.pv-banner .pv-bar button:hover { background: #4493f8; }

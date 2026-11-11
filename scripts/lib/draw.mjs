@@ -132,6 +132,16 @@ export function surface(theme, w, h, { k = 1, withEdge = true, fill = theme.fill
     `fill="none" ${edge(theme, sw)}/>`;
 }
 
+/**
+ * Where the banner photo sits in a W x H banner: {x, y, w, h, overflowX, overflowY}.
+ * Shared with the editor, which turns mouse drags and zoom into position / zoom settings.
+ */
+export function bannerImageBox(opt, imgW, imgH, W = 1600, H = 420) {
+  const z = (opt.zoom || 100) / 100, w = W * z, h = imgH * (W / imgW) * z;
+  const overflowX = Math.max(0, w - W), overflowY = Math.max(0, h - H);
+  return { x: -overflowX * ((opt.position_x ?? 50) / 100) || 0, y: -overflowY * (opt.position / 100) || 0, w, h, overflowX, overflowY };
+}
+
 /** Drawing context bound to a theme and font (supports both "led" and "standard" renderer styles). */
 export function painter(theme, font, styleOverride) {
   const small = font.small, large = font.large || font.small;
@@ -476,9 +486,9 @@ export function bannerSvg(p, theme, opt, image, invert = false) {
   const W = 1600, H = 420, defs = [], body = [], css = [];
   const speed = animSpeed(theme, opt);
   if (image) {
-    // Photo scaled to the banner width; `position` picks the visible band.
-    const scale = W / image.width, ph = image.height * scale;
-    const y = -Math.max(0, ph - H) * (opt.position / 100);
+    // Photo scaled to the banner width, then zoomed; position_x / position pick the visible part
+    // (0-100 % of the overflow on each axis). zoom 100 and position_x anything = the plain width fit.
+    const g = bannerImageBox(opt, image.width, image.height, W, H), ph = g.h, y = g.y;
     const b = opt.brightness / 100, contrast = opt.contrast / 100;
     let slope = contrast * b, intercept = b * 0.5 * (1 - contrast);
     if (invert) [slope, intercept] = [-slope, 1 - intercept];
@@ -489,7 +499,7 @@ export function bannerSvg(p, theme, opt, image, invert = false) {
       `<feComponentTransfer>${["R", "G", "B"].map((c) =>
         `<feFunc${c} type="linear" slope="${slope.toFixed(3)}" intercept="${intercept.toFixed(3)}"/>`).join("")}` +
       `</feComponentTransfer>${tint}</filter>`);
-    body.push(`<image href="data:${image.mime};base64,${image.base64}" x="0" y="${n(y)}" width="${W}" height="${n(ph)}" ` +
+    body.push(`<image href="data:${image.mime};base64,${image.base64}" x="${n(g.x)}" y="${n(y)}" width="${n(g.w)}" height="${n(ph)}" ` +
       `preserveAspectRatio="none" filter="url(#photo)"/>`);
   } else if (theme.fill !== "none") body.push(`<rect width="${W}" height="${H}" fill="${opt.color}"/>`);
 
