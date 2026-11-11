@@ -151,7 +151,7 @@ export function painter(theme, font, styleOverride) {
 
   /** Card background + content, without the <svg> wrapper (for nesting). */
   const cardBody = (w, h, body) =>
-    `<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="${theme.radius}" fill="${theme.bg}" stroke="${theme.border}"/>${body}`;
+    `<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="${theme.radius}" fill="${theme.fill}" stroke="${theme.border}"/>${body}`;
   const card = (w, h, body) => svgDoc(w, h, cardBody(w, h, body));
 
   return { text, unitWidth, truncate, card, cardBody, small, large, norm };
@@ -163,7 +163,7 @@ export function heading(p, theme, label, small = false) {
   const pitch = small ? 3.2 : 5.6, padY = small ? 10 : 16;
   const t = p.text(label, 24, padY, { pitch, fill: small ? theme.muted : theme.fg });
   const h = Math.round(t.h + 2 * padY);
-  return svgDoc(CARD_W, h, `<rect width="${CARD_W}" height="${h}" rx="${theme.radius}" fill="${theme.bg}"/>${t.svg}`);
+  return svgDoc(CARD_W, h, `<rect width="${CARD_W}" height="${h}" rx="${theme.radius}" fill="${theme.fill}"/>${t.svg}`);
 }
 
 const TILE_W = 168, TILE_H = 132, TILE_GAP = 6;
@@ -261,7 +261,7 @@ export function categoryRows(p, theme, groups, o) {
 
       const pitch = Math.max(1.8, Math.min(3.0, (cellW - 28) / (p.unitWidth(title) + 2 * theme.dot * p.norm)));
       const label = p.text(p.truncate(title, pitch, cellW - 28), x0 + 14, 0, { pitch, fill: theme.fg });
-      const head = `<rect x="${n(x0)}" width="${n(cellW)}" height="${HEAD}" rx="${theme.radius}" fill="${theme.bg}"/>` +
+      const head = `<rect x="${n(x0)}" width="${n(cellW)}" height="${HEAD}" rx="${theme.radius}" fill="${theme.fill}"/>` +
         `<g transform="translate(0 ${n((HEAD - label.h) / 2)})">${label.svg}</g>`;
 
       // Calculate how many single tiles fit per line in this column
@@ -447,7 +447,7 @@ export function bannerSvg(p, theme, opt, image, invert = false) {
       `</feComponentTransfer>${tint}</filter>`);
     body.push(`<image href="data:${image.mime};base64,${image.base64}" x="0" y="${n(y)}" width="${W}" height="${n(ph)}" ` +
       `preserveAspectRatio="none" filter="url(#photo)"/>`);
-  } else body.push(`<rect width="${W}" height="${H}" fill="${opt.color}"/>`);
+  } else if (theme.fill !== "none") body.push(`<rect width="${W}" height="${H}" fill="${opt.color}"/>`);
 
   const title = String(opt.title).toUpperCase();
   const bad = [...new Set(title)].filter((c) => c !== " " && !(p.large.glyphs[c]));
@@ -717,7 +717,7 @@ export function spokenCard(p, theme, rows, style = "bars") {
       const col = i % cols, r = Math.floor(i / cols);
       const x = pad + col * (colW + gap), y = 20 + r * 72;
       const pct = Math.min(100, Math.max(0, Number(pctStr) || 0));
-      parts.push(`<rect x="${n(x)}" y="${y}" width="${n(colW)}" height="58" rx="8" fill="${theme.bg}" stroke="${theme.border}"/>`);
+      parts.push(`<rect x="${n(x)}" y="${y}" width="${n(colW)}" height="58" rx="8" fill="${theme.fill}" stroke="${theme.border}"/>`);
       parts.push(p.text(p.truncate(lang, 3.0, colW - 28), x + 14, y + 12, { pitch: 3.0, fill: theme.fg }).svg);
       if (level) parts.push(p.text(p.truncate(level, 2.2, colW - 28), x + 14, y + 36, { pitch: 2.2, fill: theme.muted }).svg);
       if (pct > 0) parts.push(p.text(`${Math.round(pct)}%`, x + colW - 14, y + 14, { pitch: 2.4, fill: theme.faint, anchor: "end" }).svg);

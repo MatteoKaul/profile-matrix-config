@@ -33,6 +33,10 @@ export const THEME_FIELDS = [
   { key: "faint", label: "Faint", type: "color", default: "#7a7a7a", help: "Placeholders and hints" },
   { key: "dim", label: "Dim", type: "color", default: "#2c2c2c", help: "Inactive dots (bars, activity grid)" },
   { key: "bg", label: "Card background", type: "color", default: "#000000", help: "Background of all cards and bars" },
+  { key: "card_fill", label: "Card fill", type: "select", options: ["solid", "none"], default: "solid",
+    help: "solid = cards are filled with the card background | none = transparent cards: text and dots sit directly on\n" +
+      "GitHub's own page background, so the profile looks seamless in every GitHub theme (best with mode = auto).\n" +
+      "A banner without image is transparent then, too" },
   { key: "border", label: "Border", type: "color", default: "#2a2a2a", help: "Card outline" },
   { key: "palette", label: "Palette", type: "select", options: ["manual", "auto"], default: "manual",
     help: "manual = use every colour as set | auto = only fg and bg (and light_fg / light_bg) are used, the others are mixed from them by contrast" },
@@ -491,6 +495,8 @@ export function resolve(settings) {
   const light = { ...theme, fg: theme.light_fg, muted: theme.light_muted, faint: theme.light_faint,
     dim: theme.light_dim, bg: theme.light_bg, border: theme.light_border };
   if (theme.palette === "auto") for (const t of [theme, light]) Object.assign(t, derivePalette(t.fg, t.bg, theme.contrast / 100));
+  // What cards are filled with; bg itself stays a colour (palette mixing, knock-outs like timeline dots).
+  for (const t of [theme, light]) t.fill = theme.card_fill === "none" ? "none" : t.bg;
 
   const layoutIds = settings.layout !== undefined ? splitList(settings.layout) : DEFAULT_LAYOUT;
   const ids = [...new Set([...layoutIds, ...Object.keys(settings)

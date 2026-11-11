@@ -735,10 +735,22 @@ const PREVIEW_CSS = `
   p { margin: 0 0 16px; } img { max-width: 100%; vertical-align: middle; } a { color: #4493f8; }
   code { background: rgba(110,118,129,.4); padding: .2em .4em; border-radius: 6px; font-size: 85%; }`;
 
-function showPreview(html) {
+// Page colour of the preview (dark / light value). Only the preview: github.com always
+// shows its own background, which is why card_fill = none exists.
+const PREVIEW_PAGES = { github: ["#0d1117", "#ffffff"], dimmed: ["#212830", "#ffffff"], contrast: ["#010409", "#ffffff"] };
+function previewBackground(c, light) {
+  const choice = $("#previewPage").value;
+  const bg = choice === "cards" ? (light ? c.light.bg : c.theme.bg)
+    : choice === "custom" ? $("#previewColor").value
+    : (PREVIEW_PAGES[choice] || PREVIEW_PAGES.github)[light ? 1 : 0];
+  return /^#[0-9a-f]{3,8}$/i.test(bg) ? bg : PREVIEW_PAGES.github[light ? 1 : 0];
+}
+
+function showPreview(html, pageBg) {
   const frame = $("#frame"), y = frame.contentWindow?.scrollY || 0;
+  frame.style.background = pageBg;
   frame.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><style>${PREVIEW_CSS}</style>` +
-    `<body class="${$("#previewMode").value}"><article class="readme">${html}</article></body>`;
+    `<body class="${$("#previewMode").value}" style="background:${pageBg}"><article class="readme">${html}</article></body>`;
   frame.onload = () => frame.contentWindow.scrollTo(0, y); // keep the scroll position while editing
 }
 
@@ -760,7 +772,7 @@ async function renderPreview() {
       .replace(/src="(assets\/gen\/[^"]+)"/g, (_, path) => `src="${svgUrl(files[path])}"`)
       // external images (the visitor counter) cannot load here: a sample instead
       .replace(/src="https:\/\/[^"]*"/g, `src="${counter}"`);
-    showPreview(html);
+    showPreview(html, previewBackground(c, light));
     status.className = "status";
     status.textContent = `${Object.keys(files).length} images · ${$("#dataSource").value === "sample" ? "sample data" : "GitHub data"}`;
   } catch (err) {
@@ -828,5 +840,15 @@ $("#importFile").onchange = async (e) => {
 };
 $("#dataSource").onchange = renderPreview;
 $("#previewMode").onchange = renderPreview;
+// Preview page colour: remembered in this browser only (a convenience, not a setting).
+for (const [id, key] of [["#previewPage", "profile-matrix.page"], ["#previewColor", "profile-matrix.pageColor"]]) {
+  try { const v = localStorage.getItem(key); if (v) $(id).value = v; } catch { /* storage blocked */ }
+  $(id).addEventListener("input", () => {
+    try { localStorage.setItem(key, $(id).value); } catch { /* storage blocked */ }
+    $("#previewColor").hidden = $("#previewPage").value !== "custom";
+    renderPreview();
+  });
+}
+$("#previewColor").hidden = $("#previewPage").value !== "custom";
 
 load().catch((err) => { $("#status").className = "status error"; $("#status").textContent = `Could not load: ${err.message}`; });

@@ -97,6 +97,12 @@ The editor never writes anywhere. "Download settings.txt" saves the file;
 anywhere on the page imports it. The workflow in the profile repository
 rebuilds the profile after the upload.
 
+"Page" sets the background of the preview: GitHub (dark or light), GitHub
+dimmed, high contrast, the card colour or any custom colour (remembered in the
+browser only). On github.com the page always has GitHub's own colour; for a
+seamless look there, set `theme.card_fill = none` (transparent cards, best
+with `theme.mode = auto`).
+
 "Data: Sample data" previews modules that need fetched data (projects,
 releases, activity, gists, feed, Twitch, guestbook) before you have any.
 "Preview: GitHub light" shows the light variant when `theme.mode` is `light`

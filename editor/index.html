@@ -26,6 +26,16 @@
         <option value="light">GitHub light</option>
       </select>
     </label>
+    <label title="Background of the preview page only. On github.com the page is always GitHub's own colour.">Page
+      <select id="previewPage">
+        <option value="github">GitHub</option>
+        <option value="dimmed">GitHub dimmed</option>
+        <option value="contrast">High contrast</option>
+        <option value="cards">Card colour</option>
+        <option value="custom">Custom</option>
+      </select>
+      <input type="color" id="previewColor" value="#0d1117" aria-label="Custom preview background" hidden>
+    </label>
     <button id="secretsGuideBtn" title="How to configure GitHub Repository Secrets safely">Secrets guide</button>
   </div>
   <div class="bar-group">
