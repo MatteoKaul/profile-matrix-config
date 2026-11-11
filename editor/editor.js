@@ -505,6 +505,8 @@ function field(f, value, onChange, module) {
       return iconEditor(module);
     case "links":
       return linkEditor(f, value, onChange);
+    case "iconlinks":
+      return iconLinkEditor(f, value, onChange, module);
     case "people":
       return peopleEditor(f, value, onChange);
     case "rows":
@@ -685,6 +687,27 @@ function linkEditor(f, value, onChange) {
     (state.catalog.icons[b].category === "social") - (state.catalog.icons[a].category === "social") || a.localeCompare(b));
   return rowEditor(f, rows, [{ label: "icon", options: keys }, { label: "https://..." }, { label: "label (optional)" }],
     save, ["website", "", ""], "+ Link");
+}
+
+/** icons.links: one row per linked icon (icon = https://...); the icon list is the module's own icons. */
+function iconLinkEditor(f, value, onChange, module) {
+  const items = R.splitList(module?.opt?.items || "");
+  const rows = R.splitPairs(value).map(([k, v]) => [k, v.split("|")[0].trim()]);
+  for (const [k] of rows) if (!items.includes(k)) items.push(k); // keep a link whose icon was removed visible
+  const save = () => onChange(rows.filter(([k, u]) => k && u).map(([k, u]) => `${k}=${u}`).join(", "));
+  return rowEditor(f, rows, [{ label: "icon", options: items }, { label: "https://..." }], save, [items[0] || "", ""], "+ Link");
+}
+
+/** Set (or clear, with "") the link of one icon. */
+function setIconLink(id, k, url) {
+  const m = iconModule(id);
+  if (!m) return;
+  url = url.trim();
+  if (url && !/^(https?:\/\/|mailto:)/i.test(url)) { alert("The link must start with https://, http:// or mailto:"); return; }
+  const links = Object.fromEntries(R.splitPairs(m.opt.links || "").map(([a, b]) => [a.toLowerCase(), b.split("|")[0].trim()]));
+  if (url) links[k] = url; else delete links[k];
+  set(`${id}.links`, joinPairs(links));
+  iconsChanged(id);
 }
 
 /** people: name, role, url, image (gh:<login> or icon key). */
@@ -935,6 +958,13 @@ function iconHits(entry) {
       el.addEventListener("dragstart", (e) => startDrag(e, "icon", hit.key, id));
       el.append(h("button", { class: "dbl", type: "button", title: `Toggle 2x size of ${hit.key}`,
         onclick: (e) => { e.preventDefault(); e.stopPropagation(); toggleDouble(id, hit.key); } }, "2x"));
+      const current = R.splitPairs(m.opt.links || "").find(([a]) => a.toLowerCase() === hit.key)?.[1]?.split("|")[0].trim() || "";
+      el.append(h("button", { class: `lnk${current ? " on" : ""}`, type: "button", title: current ? `Link: ${current}` : `Add a link to ${hit.key}`,
+        onclick: (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const url = window.prompt(`Link for ${hit.key} (https://..., empty removes it)`, current);
+          if (url !== null) setIconLink(id, hit.key, url);
+        } }, "link"));
       el.append(h("button", { class: "x", type: "button", title: `Remove ${hit.key}`,
         onclick: (e) => { e.preventDefault(); e.stopPropagation(); removeIcon(id, hit.key); } }, "×"));
     } else if (hit.type === "head" && real.has(hit.cat)) {

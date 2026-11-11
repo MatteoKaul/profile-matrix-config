@@ -251,46 +251,62 @@ function renderPass(cfg, data, assets, { theme, light, prefix }) {
         const doubleSet = new Set(splitList(o.double_items || "").map((k) => k.toLowerCase()));
         const useManualDouble = o.double_mode === "manual" || o.double_mode === "both" || o.continuity === "granular";
         const useAutoDouble = o.double_mode === "auto" || o.double_mode === "both";
+        // icon -> link. An image holds one link only, so linked icons are separate images (see below).
+        const links = Object.fromEntries(splitPairs(o.links || "").map(([k, v]) => [k.toLowerCase(), v.split("|")[0].trim()]));
+        for (const [k, url] of Object.entries(links)) {
+          if (!catalog.icons[k]) fail(`${m.id}.links: unknown icon "${k}"`);
+          checkLink(m, url, `link of ${k}`);
+        }
 
-        if (o.columns > 1) {
+        // Single tile images (columns = 1, and categories with links in a grid layout).
+        //   kk = displayed px per drawing unit; the image height follows it.
+        const tileImg = (k, isDouble, kk) => {
+          const large = isDouble && o.double_style === "large"; // 2x width and height instead of 2x width
+          const f = large ? 2 : 1;
+          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble && !large, kk * f);
+          const fileKey = isDouble ? `${k}-${large ? "big" : "2x"}` : k;
+          const src = put(`tiles/${o.tile}-${Math.round(kk * 132)}/${fileKey}.svg`, t.svg);
+          record({ src, module: m.id, w: t.w, h: t.h, hits: [{ type: "icon", key: k, cat, x: 0, y: 0, w: t.w, h: t.h }] });
+          return link(links[k], img(src, catalog.icons[k].label, `height="${Math.round(kk * f * t.h)}"`));
+        };
+        const row = (keys, kk) => "<p>\n" + keys.map((k, idx) => {
+          const isLastOdd = useAutoDouble && o.double_style !== "large" && idx === keys.length - 1 && keys.length % 2 === 1;
+          const isDouble = (useManualDouble && doubleSet.has(k)) || isLastOdd;
+          return `  ${tileImg(k, isDouble, kk)}`;
+        }).join("\n") + "\n</p>";
+        let cat = ""; // category of the tiles being emitted (for the preview's hit map)
+        const catBlocks = (list, kk) => list.flatMap(([catKey, keys]) => {
+          cat = catKey;
+          if (o.dissolve_single === "on" && groups.length === 1 && catKey === "general") return [row(keys, kk)];
+          return [headingBlock(m, titleOf(catKey), o.style === "compact", `cat-${catKey}`, catKey), row(keys, kk)];
+        });
+
+        if (o.columns <= 1) {
+          blocks.push(join(...(o.style === "compact" ? [headingBlock(m, o.title)] : []), ...catBlocks(groups, o.size / 132)));
+          break;
+        }
+
+        // Grid layout: runs of categories without links are drawn as rows of columns (one image per row);
+        // a category with at least one linked icon becomes its own full-width block of tile images.
+        const gridK = o.tile === "badge" ? (o.grid_size * 0.5) / 48 : o.grid_size / 132;
+        const parts = o.style === "compact" ? [headingBlock(m, o.title)] : [];
+        let rowNo = 0;
+        for (let i = 0; i < groups.length;) {
+          if (groups[i][1].some((k) => links[k])) { parts.push(...catBlocks([groups[i]], gridK)); i++; continue; }
+          let j = i;
+          while (j < groups.length && !groups[j][1].some((k) => links[k])) j++;
           const rows = categoryRows(
             p,
             theme,
-            groups.map(([cat, keys]) => [titleOf(cat), keys.map((k) => ({ ...catalog.icons[k], key: k })), cat]),
+            groups.slice(i, j).map(([catKey, keys]) => [titleOf(catKey), keys.map((k) => ({ ...catalog.icons[k], key: k })), catKey]),
             o
           );
-          blocks.push(join(o.style === "compact" ? headingBlock(m, o.title) : "",
-            ...rows.map((r, i) => {
-              const src = put(`${m.id}/row-${i + 1}.svg`, r.svg);
-              record({ src, module: m.id, w: r.w, h: r.h, hits: r.hits });
-              return para(img(src, r.alt, 'width="100%"'));
-            })));
-          break;
-        }
-        // Columns = 1: standalone SVG tiles
-        let cat = ""; // category of the tiles being emitted (for the preview's hit map)
-        const tileImg = (k, isDouble = false) => {
-          const large = isDouble && o.double_style === "large"; // 2x width and height instead of 2x width
-          const f = large ? 2 : 1;
-          const t = tile(p, theme, catalog.icons[k], o.tile, isDouble && !large, (o.size / 132) * f); // shown at size/132 px per unit
-          const fileKey = isDouble ? `${k}-${large ? "big" : "2x"}` : k;
-          const src = put(`tiles/${o.tile}-${o.size}/${fileKey}.svg`, t.svg);
-          record({ src, module: m.id, w: t.w, h: t.h, hits: [{ type: "icon", key: k, cat, x: 0, y: 0, w: t.w, h: t.h }] });
-          return img(src, catalog.icons[k].label, `height="${Math.round((o.size * f * t.h) / 132)}"`);
-        };
-        const row = (keys) => "<p>\n" + keys.map((k, idx) => {
-          const isLastOdd = useAutoDouble && o.double_style !== "large" && idx === keys.length - 1 && keys.length % 2 === 1;
-          const isDouble = (useManualDouble && doubleSet.has(k)) || isLastOdd;
-          return `  ${tileImg(k, isDouble)}`;
-        }).join("\n") + "\n</p>";
-        const parts = o.style === "compact" ? [headingBlock(m, o.title)] : [];
-        for (const [catKey, keys] of groups) {
-          cat = catKey;
-          if (o.dissolve_single === "on" && groups.length === 1 && catKey === "general") {
-            parts.push(row(keys));
-          } else {
-            parts.push(headingBlock(m, titleOf(catKey), o.style === "compact", `cat-${catKey}`, catKey), row(keys));
+          for (const r of rows) {
+            const src = put(`${m.id}/row-${++rowNo}.svg`, r.svg);
+            record({ src, module: m.id, w: r.w, h: r.h, hits: r.hits });
+            parts.push(para(img(src, r.alt, 'width="100%"')));
           }
+          i = j;
         }
         blocks.push(join(...parts));
         break;

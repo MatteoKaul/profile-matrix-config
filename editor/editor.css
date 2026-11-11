@@ -263,3 +263,6 @@ main > * { min-width: 0; min-height: 0; }
 .pv-hit .dbl { display: none; position: absolute; top: 3px; left: 3px; height: 18px; padding: 0 6px; border-radius: 999px;
   border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 10px/1 var(--mono); cursor: pointer; }
 .pv-hit.pv-icon:hover .dbl { display: block; } .pv-hit .dbl:hover { background: #4493f8; }
+.pv-hit .lnk { display: none; position: absolute; bottom: 3px; left: 3px; height: 18px; padding: 0 6px; border-radius: 999px;
+  border: 1px solid #4493f8; background: #0d1117; color: #fff; font: 700 10px/1 var(--mono); cursor: pointer; }
+.pv-hit.pv-icon:hover .lnk, .pv-hit .lnk.on { display: block; } .pv-hit .lnk.on { background: #4493f8; } .pv-hit .lnk:hover { background: #4493f8; }
