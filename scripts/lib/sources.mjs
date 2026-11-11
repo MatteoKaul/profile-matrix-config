@@ -100,11 +100,14 @@ export function updatePortfolioHistory(existing, allocations, priceSeriesByTicke
   const history = Array.isArray(existing?.history) ? [...existing.history].sort((a, b) => a.date.localeCompare(b.date)) : [];
   const weights = Object.fromEntries(allocations.map((a) => [a.ticker.toUpperCase(), a.weight / 100]));
   const tickers = Object.keys(weights);
-  if (!tickers.length) return { updatedAt: new Date().toISOString().slice(0, 10), history };
+  // Nothing new (no tickers, or every price request failed): keep the stored state
+  // exactly as it is, including lastPrices, so the next good day chains on correctly.
+  const unchanged = () => ({ updatedAt: existing?.updatedAt || null, history, lastPrices: { ...(existing?.lastPrices || {}) } });
+  if (!tickers.length) return unchanged();
 
   // Collect all sorted dates available in the fetched price series
   const allDates = [...new Set(tickers.flatMap((t) => Object.keys(priceSeriesByTicker[t] || {})))].sort();
-  if (!allDates.length) return { updatedAt: new Date().toISOString().slice(0, 10), history };
+  if (!allDates.length) return unchanged();
 
   // Forward-fill missing weekend/holiday prices per ticker across allDates
   const filled = {};
@@ -120,7 +123,7 @@ export function updatePortfolioHistory(existing, allocations, priceSeriesByTicke
   // If no history exists yet, initialize at 100.00 on the first date where at least one asset has a price
   if (!history.length) {
     const firstDate = allDates.find((d) => tickers.some((t) => filled[t][d] > 0));
-    if (!firstDate) return { updatedAt: new Date().toISOString().slice(0, 10), history: [] };
+    if (!firstDate) return unchanged();
     history.push({ date: firstDate, index: 100 });
   }
 

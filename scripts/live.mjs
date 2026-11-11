@@ -12,6 +12,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { liveState } from "./lib/sources.mjs";
 import { loadConfig } from "./lib/config.mjs";
+import { optionalStep } from "./lib/optional.mjs";
+
+optionalStep("live"); // a failure warns and keeps the old data, the build goes on
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = join(ROOT, "data/live.json");

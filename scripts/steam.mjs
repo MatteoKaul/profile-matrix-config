@@ -17,6 +17,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { updateSteamSnapshots } from "./lib/sources.mjs";
 import { loadConfig } from "./lib/config.mjs";
+import { optionalStep } from "./lib/optional.mjs";
+
+optionalStep("steam"); // a failure warns and keeps the old data, the build goes on
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = join(ROOT, "data/steam.json");
@@ -49,7 +52,9 @@ const params = new URLSearchParams({
 
 const url = `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?${params}`;
 const res = await fetch(url, { headers: { "User-Agent": "profile-matrix" } });
-if (!res.ok) throw new Error(`Steam Web API: ${res.status} ${await res.text()}`);
+if (!res.ok) { // status only: the response body is not needed and the URL holds the key
+  throw new Error(`Steam Web API ${res.status}${[401, 403].includes(res.status) ? " (check STEAM_API_KEY and that the profile and game details are public)" : ""}`);
+}
 
 const payload = await res.json();
 const apiGames = payload?.response?.games || [];

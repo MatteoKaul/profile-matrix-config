@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 import { updatePortfolioHistory } from "./lib/sources.mjs";
 import { loadConfig } from "./lib/config.mjs";
 import { splitPortfolio } from "./render.mjs";
+import { optionalStep } from "./lib/optional.mjs";
+
+optionalStep("market"); // a failure warns and keeps the old data, the build goes on
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE = join(ROOT, "data/portfolio.json");
