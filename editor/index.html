@@ -11,27 +11,30 @@
 </head>
 <body>
 <header class="bar">
-  <strong class="brand">PROFILE EDITOR</strong>
-  <span id="version" class="version"></span>
-  <label>Data
-    <select id="dataSource">
-      <option value="github">GitHub data</option>
-      <option value="sample">Sample data</option>
-    </select>
-  </label>
-  <label>Preview
-    <select id="previewMode">
-      <option value="dark">GitHub dark</option>
-      <option value="light">GitHub light</option>
-    </select>
-  </label>
-  <button id="secretsGuideBtn" title="How to configure GitHub Repository Secrets safely">Secrets guide</button>
-  <span class="spacer"></span>
-  <label class="button">Import settings.txt<input type="file" id="importFile" accept=".txt,.json" title="Or drop the file anywhere on this page" hidden></label>
-  <button id="copy">Copy settings.txt</button>
-  <button id="download" class="primary">Download settings.txt</button>
-  <input id="repoName" type="text" placeholder="you/you" size="14" title="Your profile repository (owner/name), only remembered in this browser" aria-label="Your profile repository">
-  <a id="uploadToGithub" class="button" target="_blank" rel="noopener noreferrer" title="Opens the upload page of your repository: drop settings.txt there and commit">Upload to my repo</a>
+  <div class="bar-group">
+    <strong class="brand">PROFILE EDITOR</strong>
+    <span id="version" class="version"></span>
+    <label>Data
+      <select id="dataSource">
+        <option value="github">GitHub data</option>
+        <option value="sample">Sample data</option>
+      </select>
+    </label>
+    <label>Preview
+      <select id="previewMode">
+        <option value="dark">GitHub dark</option>
+        <option value="light">GitHub light</option>
+      </select>
+    </label>
+    <button id="secretsGuideBtn" title="How to configure GitHub Repository Secrets safely">Secrets guide</button>
+  </div>
+  <div class="bar-group">
+    <label class="button">Import settings.txt<input type="file" id="importFile" accept=".txt,text/plain" title="Or drop the file anywhere on this page" hidden></label>
+    <button id="copy">Copy settings.txt</button>
+    <input id="repoName" type="text" placeholder="you/you" size="14" title="Your profile repository (owner/name), only remembered in this browser" aria-label="Your profile repository">
+    <a id="uploadToGithub" class="button" target="_blank" rel="noopener noreferrer" title="Opens the upload page of your repository: drop settings.txt there and commit">Upload to my repo</a>
+    <button id="download" class="primary">Download settings.txt</button>
+  </div>
 </header>
 
 <dialog id="secretsDialog" class="modal">

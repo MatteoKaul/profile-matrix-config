@@ -184,8 +184,8 @@ function renderModules() {
       h("span", { class: "grip", title: "Drag to reorder" }, on ? "⋮⋮" : ""),
       h("input", { type: "checkbox", checked: on, title: on ? "Hide" : "Show",
         onchange: (e) => { setLayout(e.target.checked ? [...layoutIds(), m.id] : layoutIds().filter((i) => i !== m.id)); renderModules(); } }),
-      h("span", { class: "name" }, m.id),
-      h("span", { class: "type" }, R.TYPES[m.type].label));
+      h("span", { class: "name", title: m.id }, m.id),
+      h("span", { class: "type", title: R.TYPES[m.type].label }, R.TYPES[m.type].label));
     if (on) dragSort(el, m.id);
     return el;
   };
@@ -301,14 +301,14 @@ function renderOptions() {
     fgHex.onchange = () => applyCustomFontColor(fgHex.value);
 
     fill($("#options"), title("Theme & Typography"),
-      h("div", { class: "field" }, h("label", {}, "Colour Presets (incl. Purple)"),
+      h("div", { class: "field" }, h("label", {}, "Colour presets"),
         h("div", { class: "presets" }, Object.entries(PRESETS).map(([name, colours]) =>
           h("button", { title: "Sets the theme colours below", style: `--a:${colours.fg};--b:${colours.bg}`,
             onclick: () => { for (const [k, v] of Object.entries(colours)) state.settings[`theme.${k}`] = v; changed(); renderOptions(); } },
           h("i", {}), name))),
         h("div", { class: "help" }, "Starting points (Mono, Purple, Amber, Phosphor, Ice, Red, Grey); every colour can be customized below.")),
       h("div", { class: "field" },
-        h("label", {}, "Custom Font Colour (Free Color Picker + Hex/RGB)"),
+        h("label", {}, "Font colour (hex or rgb)"),
         h("div", { class: "row" }, fgPick, fgHex),
         h("div", { class: "help" }, "Pick any custom font colour or enter Hex (#b877ff) or RGB (184, 119, 255).")),
       R.THEME_FIELDS.map((f) => field(f, state.settings[`theme.${f.key}`] ?? c.theme[f.key], (v) => set(`theme.${f.key}`, v))));
@@ -357,7 +357,7 @@ function field(f, value, onChange, module) {
       break;
     }
     case "select":
-      input = h("select", { onchange: (e) => { onChange(e.target.value); if (module?.type === "icons") renderOptions(); } },
+      input = h("select", { onchange: (e) => { onChange(e.target.value); if (["icons", "portfolio"].includes(module?.type)) renderOptions(); } },
         f.options.map((o) => h("option", { value: o, selected: o === value },
           f.key === "dissolve_single" ? (SINGLE_GROUP_LABELS[o] || o) : o)));
       break;
@@ -422,44 +422,50 @@ function portfolioEditor(f, value, onChange, module) {
 
   const list = h("div", {});
 
+  const step = Number(module?.opt?.precision) || R.PORTFOLIO_SAFE_STEP;
+  const riskBox = h("div", {});
+
+  // Only the rounded weights are saved; amounts stay in this function's memory.
   const saveWeights = () => {
-    // If any row has a positive €/$ amount entered, compute exact percentage weights from the €/$ amounts
-    const hasAmounts = rows.some((r) => Number(r.amount) > 0);
-    if (hasAmounts) {
-      const total = rows.reduce((sum, r) => sum + Math.max(0, Number(r.amount) || 0), 0);
-      if (total > 0) {
-        rows.forEach((r) => {
-          const amt = Math.max(0, Number(r.amount) || 0);
-          r.weight = +((amt / total) * 100).toFixed(2);
-        });
-      }
-    } else {
-      // Normalize manual weights to 100%
-      const sum = rows.reduce((s, r) => s + Math.max(0, Number(r.weight) || 0), 0);
-      if (sum > 0) rows.forEach((r) => { r.weight = +((Math.max(0, Number(r.weight) || 0) / sum) * 100).toFixed(2); });
-    }
-    // Persist ONLY Ticker=Weight%|Label (never r.amount!)
+    const useAmounts = rows.some((r) => Number(r.amount) > 0);
+    const rounded = R.roundWeights(rows.map((r) => Number(useAmounts ? r.amount : r.weight) || 0), step);
+    rows.forEach((r, i) => { r.weight = rounded[i]; });
     const serialized = rows
       .filter((r) => r.ticker.trim() && r.weight > 0)
       .map((r) => `${r.ticker.trim().toUpperCase()}=${r.weight}${r.label.trim() ? `|${r.label.trim()}` : ""}`)
       .join(", ");
+    drawRisk();
     onChange(serialized);
+  };
+
+  // Always-visible privacy note; turns into a warning above the threshold.
+  const drawRisk = () => {
+    const risk = R.portfolioRisk(rows.filter((r) => r.ticker.trim() && r.weight > 0).length, step);
+    fill(riskBox, h("div", { class: `zk-risk ${risk.level}`, role: "note" },
+      h("strong", {}, risk.level === "not-recommended" ? "NOT RECOMMENDED: " + risk.reason.toUpperCase()
+        : risk.level === "caution" ? "CAUTION: " + risk.reason.toUpperCase() : "WHAT BECOMES PUBLIC"),
+      h("div", {}, "Only the weights are published (in settings.txt, rounded to ", h("code", {}, `${step} %`),
+        "), never amounts. But weights plus the public prices on the day you commit them show the ratio between your positions. ",
+        "With few whole shares of expensive stocks, someone could guess how many shares you hold."),
+      h("div", {}, risk.level === "not-recommended"
+        ? `Use a precision of ${R.PORTFOLIO_SAFE_STEP} % or coarser (option below). Finer steps are only safe for large portfolios or fractional savings plans.`
+        : `Keep the precision at ${R.PORTFOLIO_SAFE_STEP} % or coarser. Many positions and fractional shares make guessing harder.`)));
   };
 
   const draw = () => {
     fill(list, rows.map((row, i) => {
-      const weightDisplay = h("span", { class: "zk-weight", title: "Saved percentage weight" }, `${row.weight.toFixed(1)}%`);
+      const weightDisplay = h("span", { class: "zk-weight", title: "Saved percentage weight" }, `${row.weight}%`);
       const amountInput = h("input", {
-        type: "number", min: 0, step: "any", value: row.amount,
-        placeholder: "Amount (€/$) [Zero-Knowledge]",
-        title: "Enter position value in €/$ — converted immediately to %, never saved!",
+        type: "number", min: 0, step: "any", value: row.amount, autocomplete: "off", inputmode: "decimal",
+        placeholder: "Amount (EUR/USD)",
+        title: "Position value: converted to a rounded % at once, never saved or exported",
         oninput: (e) => {
           row.amount = e.target.value;
           amounts[row.ticker] = row.amount;
           saveWeights();
           // Update all weight displays live without losing focus
           list.querySelectorAll(".zk-weight").forEach((el, idx) => {
-            if (rows[idx]) el.textContent = `${rows[idx].weight.toFixed(1)}%`;
+            if (rows[idx]) el.textContent = `${rows[idx].weight}%`;
           });
         },
       });
@@ -474,12 +480,14 @@ function portfolioEditor(f, value, onChange, module) {
       );
     }));
   };
+  if (rows.some((r) => Number(r.amount) > 0)) saveWeights(); else drawRisk(); // precision changed: round again
   draw();
 
   return h("div", { class: "field" },
     h("label", {}, f.label),
     h("div", { class: "zk-box" },
-      h("div", { class: "zk-badge" }, "🛡️ Zero-Knowledge Mode: €/$ values are converted to % in-browser and NEVER saved"),
+      h("div", { class: "zk-badge" }, "ZERO-KNOWLEDGE: AMOUNTS ARE CONVERTED TO % IN THIS BROWSER AND NEVER SAVED"),
+      riskBox,
       list,
       h("div", { class: "row", style: "margin-top:8px" },
         h("button", { type: "button", onclick: () => { rows.push({ ticker: "", label: "", amount: "", weight: 0 }); draw(); } }, "+ Add Asset"),
@@ -487,7 +495,7 @@ function portfolioEditor(f, value, onChange, module) {
           rows.forEach((r) => { r.amount = ""; });
           state.ephemeralAmounts[modKey] = {};
           draw();
-        } }, "Clear €/$ Inputs (Keep %)")
+        } }, "Clear amounts (keep %)")
       )
     ),
     h("div", { class: "help" }, f.help)
@@ -788,7 +796,7 @@ function setupGithubLink() {
   update();
 }
 
-/** Import a dropped or chosen settings.txt / config.json. */
+/** Import a dropped or chosen settings.txt. */
 async function importSettings(file) {
   if (!file || file.size > 1e6) return;
   state.settings = R.parseSettings(await file.text());
@@ -797,7 +805,7 @@ async function importSettings(file) {
 }
 document.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); });
 document.addEventListener("drop", (e) => {
-  const f = [...(e.dataTransfer?.files || [])].find((x) => /\.(txt|json)$/i.test(x.name));
+  const f = [...(e.dataTransfer?.files || [])].find((x) => /\.txt$/i.test(x.name));
   if (f) { e.preventDefault(); importSettings(f); }
 });
 

@@ -84,7 +84,7 @@ export const TYPES = {
         help: "Component animation speed multiplier (multiplies with theme.animation_speed)" },
       { key: "cursor", label: "Blinking cursor", type: "toggle", default: "off", help: "A blinking dot cursor after the title" },
       { key: "ticker", label: "Ticker text", type: "text", default: "",
-        help: "Scrolling LED line at the bottom of the banner, empty = off. E.g. NOW BUILDING: LUMI +++ LIVE ON TWITCH" },
+        help: "Scrolling LED line at the bottom of the banner, empty = off. E.g. NOW BUILDING: LOREM IPSUM +++ NEW VIDEO OUT" },
       { key: "ticker_speed", label: "Ticker speed", type: "number", min: 20, max: 200, step: 5, default: 60, help: "Pixels per second" },
       { key: "fps", label: "Video frames per second", type: "number", min: 4, max: 24, step: 1, default: 12,
         help: "Only for videos: lower = smaller file" },
@@ -160,7 +160,7 @@ export const TYPES = {
       { key: "mode", label: "Selection mode", type: "select", options: ["auto", "list"], default: "auto",
         help: "auto = repositories you contributed to on GitHub | list = specific owner/repo entries below" },
       { key: "repos", label: "Repositories (list or extra)", type: "list", default: "",
-        help: "Optional owner/repo names, e.g. torvalds/linux, godotengine/godot" },
+        help: "Optional owner/repo names, e.g. example-org/web-framework, octocat/Hello-World" },
       { key: "exclude", label: "Exclude repos", type: "list", default: "",
         help: "Repo names or owner/repo to hide from automatic list" },
       { key: "limit", label: "Max cards", type: "number", min: 1, max: 12, step: 1, default: 6 },
@@ -221,6 +221,9 @@ export const TYPES = {
       { key: "allocations", label: "Asset weights (% only, Zero-Knowledge)", type: "portfolio", default: "",
         help: "Ticker=Weight%|Label pairs (sum = 100%). Absolute €/$ values entered in the editor are converted client-side to percentages immediately and are NEVER saved or exported.\n" +
           "E.g. VWCE.DE=60|FTSE ALL-WORLD, AAPL=25|APPLE, BTC-USD=15|BITCOIN" },
+      { key: "precision", label: "Weight precision (%)", type: "select", options: ["5", "1", "0.5", "0.1"], default: "1",
+        help: "Weights are rounded to this step before they are saved. Finer steps let others estimate how many shares you hold\n" +
+          "(weights + public prices on the commit date). 1 = recommended | 0.5 or 0.1 = not recommended" },
       { key: "provider", label: "Market data provider", type: "select", options: ["yahoo", "tiingo", "eodhd", "alphavantage", "stooq"], default: "yahoo",
         help: "yahoo = no key, unofficial (can break) | tiingo = US listings only | eodhd = also Xetra & Europe | alphavantage, stooq = small free quota\nAll except yahoo read the repository secret MARKET_API_KEY" },
       { key: "chart", label: "Allocation chart type", type: "select", options: ["donut", "bar", "treemap"], default: "donut",
@@ -297,7 +300,7 @@ export const TYPES = {
       { key: "title", label: "Heading", type: "text", default: "NOW" },
       { key: "items", label: "Lines", type: "rows", columns: ["Label", "Text"], default: "",
         help: "One line per entry (\\n between them in settings.txt), each: LABEL | text.\n" +
-          "E.g. BUILDING | a homelab dashboard\\nLEARNING | Rust\\nPLAYING | Factorio" },
+          "E.g. BUILDING | a small dashboard\\nLEARNING | Rust\\nPLAYING | Factorio" },
       { key: "cursor", label: "Blinking cursor", type: "toggle", default: "on", help: "A blinking dot after the last line" },
       { key: "animation_speed", label: "Animation speed", type: "number", min: 0.2, max: 4.0, step: 0.1, default: 1.0,
         help: "Cursor blink speed multiplier" },
@@ -387,6 +390,8 @@ export const TYPES = {
 
 // Module ids become folders in assets/gen next to these.
 const RESERVED_IDS = ["tiles", "light"];
+/** obj[key] only if obj has that key itself (never an inherited member like "constructor"). */
+const own = (obj, key) => (Object.hasOwn(obj, key) ? obj[key] : undefined);
 
 const TYPE_ALIASES = { about: "text", views: "counter" };
 export const DEFAULT_LAYOUT = ["banner", "about", "icons", "projects", "releases", "stats"];
@@ -416,17 +421,13 @@ const SECRET_KEY_PATTERN = /(api[_-]?key|client[_-]?secret|token|password|secret
 // ---------------------------------------------------------- settings.txt --
 
 /**
- * "key = value" lines (or a JSON object, e.g. an imported config.json) -> {key: value}.
+ * settings.txt text -> {key: value}. One "key = value" per line.
  * Lines starting with "#" are comments (only whole lines, so values like "#ffffff" or "C#" work),
- * "\n" in a value is a line break.
+ * "\n" in a value is a line break. The result has no prototype, so keys such as
+ * "__proto__" or "constructor" are plain keys and can never reach Object.prototype.
  */
 export function parseSettings(text) {
-  if (typeof text === "object" && text !== null) return flattenConfigJson(text);
-  const trimmed = String(text).trim();
-  if (trimmed.startsWith("{")) {
-    try { return flattenConfigJson(JSON.parse(trimmed)); } catch { /* fall through to line parser */ }
-  }
-  const settings = {};
+  const settings = Object.create(null);
   for (const raw of String(text).split(/\r?\n/)) {
     const line = raw.trim();
     if (line.startsWith("#")) continue;
@@ -434,17 +435,6 @@ export function parseSettings(text) {
     if (eq > 0) settings[line.slice(0, eq).trim()] = line.slice(eq + 1).trim().replace(/\\n/g, "\n");
   }
   return settings;
-}
-
-function flattenConfigJson(obj) {
-  const flat = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (k === "layout") flat.layout = Array.isArray(v) ? v.join(", ") : String(v);
-    else if (typeof v === "object" && v !== null && !Array.isArray(v)) {
-      for (const [subK, subV] of Object.entries(v)) flat[`${k}.${subK}`] = String(subV);
-    } else flat[k] = String(v);
-  }
-  return flat;
 }
 
 const comment = (text) => text.split("\n").map((l) => `# ${l}`.trimEnd()).join("\n");
@@ -475,7 +465,7 @@ export function writeSettings(settings, catalog) {
       out.push(comment(`IMPORTANT: ${TYPES[m.type].secretWarning.text}`));
     }
     // modules without options need the type line, or a hidden one would vanish
-    if ((m.id !== m.type && TYPE_ALIASES[m.id] !== m.type) || !TYPES[m.type].fields.length) out.push(`${m.id}.type = ${m.type}`);
+    if ((m.id !== m.type && own(TYPE_ALIASES, m.id) !== m.type) || !TYPES[m.type].fields.length) out.push(`${m.id}.type = ${m.type}`);
     for (const f of TYPES[m.type].fields) {
       if (f.type === "icons" && catalog) {
         out.push(comment(`${f.help}\nAvailable, by category:\n` + Object.keys(catalog.categories).map((c) =>
@@ -509,9 +499,11 @@ export function resolve(settings) {
   const modules = ids.map((id) => {
     // ids become folder names in assets/gen, so keep them simple
     if (!/^[a-z0-9_-]+$/i.test(id)) throw new Error(`Module id "${id}": use letters, digits, - and _ only`);
-    if (RESERVED_IDS.includes(id)) throw new Error(`Module id "${id}" is reserved, use another name`);
-    const type = settings[`${id}.type`] || TYPE_ALIASES[id] || id;
-    if (!TYPES[type]) throw new Error(`Module "${id}": unknown type "${type}" (add "${id}.type = <type>")`);
+    // Names of built-in object members ("constructor", "__proto__", ...) are refused as well,
+    // so a module can never shadow or reach JavaScript internals.
+    if (RESERVED_IDS.includes(id) || id in Object.prototype) throw new Error(`Module id "${id}" is reserved, use another name`);
+    const type = settings[`${id}.type`] || own(TYPE_ALIASES, id) || id;
+    if (!own(TYPES, type)) throw new Error(`Module "${id}": unknown type "${type}" (add "${id}.type = <type>")`);
     const opt = {};
     for (const f of TYPES[type].fields) opt[f.key] = convert(f, settings[`${id}.${f.key}`], `${id}.${f.key}`);
     if (type === "banner") {
@@ -611,6 +603,35 @@ export const splitPairs = (value) => splitList(value).map((p) => {
  * Parse portfolio allocations ("VWCE.DE=60|FTSE ALL-WORLD, AAPL=40|APPLE")
  * into normalized [{ticker, weight, label}] where weights sum to 100%.
  */
+/** Steps finer than this make holdings guessable; the editor advises against them. */
+export const PORTFOLIO_SAFE_STEP = 1;
+
+/**
+ * Weights (any positive numbers) -> percentages rounded to `step` that add up to
+ * exactly 100 (largest remainder method). Used by the editor before saving.
+ */
+export function roundWeights(values, step = PORTFOLIO_SAFE_STEP) {
+  const total = values.reduce((a, v) => a + Math.max(0, v), 0);
+  if (total <= 0) return values.map(() => 0);
+  const units = Math.round(100 / step);
+  const exact = values.map((v) => (Math.max(0, v) / total) * units);
+  const out = exact.map(Math.floor);
+  let left = units - out.reduce((a, v) => a + v, 0);
+  [...exact.keys()].sort((a, b) => (exact[b] % 1) - (exact[a] % 1)).forEach((i) => { if (left > 0) { out[i]++; left--; } });
+  return out.map((u) => +(u * step).toFixed(2));
+}
+
+/**
+ * How much the published weights reveal. Only relative sizes are ever public,
+ * but with fine steps and few whole shares the share counts can be guessed.
+ *   ok | caution (two positions: their exact ratio is public) | not-recommended (step < 1 %)
+ */
+export function portfolioRisk(count, step) {
+  if (step < PORTFOLIO_SAFE_STEP) return { level: "not-recommended", reason: `weights finer than ${PORTFOLIO_SAFE_STEP} %` };
+  if (count === 2) return { level: "caution", reason: "with two positions their ratio is public" };
+  return { level: "ok", reason: "" };
+}
+
 export function splitPortfolio(value) {
   const raw = splitPairs(value).map(([ticker, rest]) => {
     const [wStr = "0", label = ""] = rest.split("|").map((s) => s.trim());

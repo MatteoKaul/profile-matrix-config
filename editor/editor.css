@@ -18,7 +18,14 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 * { box-sizing: border-box; }
+/* Layout contract: controls never grow past their box. A <select> is as wide
+   as its longest option by default (Safari even wider), so inside flex/grid
+   rows it must be allowed to shrink. */
+button, select, input, textarea { max-width: 100%; }
+select { min-width: 0; text-overflow: ellipsis; }
 html, body { height: 100%; }
+/* Bar on top, the three panels fill exactly the rest of the window (the bar may wrap). */
+body { display: flex; flex-direction: column; }
 body {
   margin: 0; color: var(--text); font: 13px/1.5 var(--mono);
   background: var(--bg) radial-gradient(var(--grid) 1px, transparent 1.3px) 0 0 / 14px 14px;
@@ -44,31 +51,39 @@ textarea { width: 100%; min-height: 120px; resize: vertical; }
 
 /* ---- top bar ---- */
 .bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px;
   position: sticky; top: 0; z-index: 5; background: rgba(5, 5, 5, .9); backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--line);
 }
 .bar label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .brand { display: flex; align-items: center; margin-right: 8px; }
 .brand img { height: 17px; }
-.spacer { flex: 1; }
+.bar-group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; min-width: 0; }
 .version { color: var(--muted); font-size: 11px; }
-#repoName { width: 150px; }
+#repoName { width: clamp(110px, 12vw, 160px); }
 
 /* ---- layout: modules | options | preview ---- */
 main {
-  display: grid; gap: 12px; padding: 12px;
-  grid-template-columns: 250px minmax(320px, 440px) 1fr;
-  height: calc(100vh - 58px);
+  display: grid; gap: 12px; padding: 12px; flex: 1; min-height: 0;
+  /* sidebar and options shrink with the window, the preview takes the rest */
+  grid-template-columns: clamp(190px, 16vw, 250px) clamp(300px, 28vw, 440px) minmax(0, 1fr);
 }
-@media (max-width: 1100px) { main { grid-template-columns: 1fr; height: auto; } .panel, .preview { max-height: none; } }
+main > * { min-width: 0; min-height: 0; }
+@media (max-width: 960px) {
+  body { display: block; height: auto; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  .bar { position: static; } /* a wrapped bar would cover half a phone screen */
+  .panel, .preview { max-height: none; }
+}
 .panel, .preview {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 16px; overflow: auto;
 }
+/* long URLs and keys in help texts wrap instead of widening the panel */
+.panel, .modal { overflow-wrap: anywhere; }
 .panel h2 { margin: 20px 0 10px; line-height: 0; }
 .panel h2:first-child { margin-top: 2px; }
-.panel h2 img { height: 10px; }
+.panel h2 img { height: auto; max-height: 10px; max-width: 100%; }
 .help { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
 
 /* ---- module list ---- */
@@ -79,19 +94,24 @@ main {
 .mod:hover { border-color: var(--line-hi); }
 .mod.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .mod.off { opacity: .45; }
-.mod .grip { cursor: grab; color: var(--muted); user-select: none; width: 10px; }
-.mod .name { flex: 1; font-weight: 600; }
-.mod .type { color: var(--muted); font-size: 11px; }
+.mod .grip { cursor: grab; color: var(--muted); user-select: none; width: 10px; overflow: visible; }
+.mod .name, .mod .type { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mod .name { flex: 1 1 auto; font-weight: 600; }
+.mod .type { flex: 0 100 auto; max-width: 50%; color: var(--muted); font-size: 11px; } /* gives way first, the name stays readable */
+.mod .grip, .mod input[type=checkbox] { flex: 0 0 auto; white-space: nowrap; overflow-wrap: normal; }
 .mod input[type=checkbox] { accent-color: #fff; }
 .mod.dragover, .cat.dragover, .chip.dragover { border-style: dashed; border-color: var(--accent); }
-.add { display: flex; gap: 6px; margin-top: 12px; }
-.add select { flex: 1; }
+.add { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+.add select { flex: 1 1 auto; min-width: 0; }
+.add button { flex: 0 0 auto; }
 
 /* ---- option fields ---- */
 .field { margin-bottom: 16px; }
 .field > label { display: block; color: var(--text); font-weight: 600; margin-bottom: 6px; }
 .field input[type=text], .field select { width: 100%; }
-.row { display: flex; gap: 8px; align-items: center; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row > * { min-width: 0; }
+.row > button { flex: 0 0 auto; }
 .row input[type=range] { flex: 1; }
 .row input[type=number] { width: 76px; }
 .row input[type=text] { flex: 1; }
@@ -159,8 +179,9 @@ main {
 .chip button { border: 0; padding: 0 5px; background: none; color: var(--muted); font-size: 11px; }
 .chip button:hover { color: var(--text); }
 .chip button.on { color: #000; background: var(--accent); border-radius: 999px; font-weight: 700; }
-.picker-tools { display: flex; gap: 6px; margin-bottom: 8px; }
-.picker-tools input { flex: 1; }
+.picker-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.picker-tools input { flex: 1 1 140px; min-width: 0; }
+.picker-tools select { flex: 0 1 auto; min-width: 0; }
 .picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; max-height: 380px; overflow: auto; padding: 2px; }
 .pick { padding: 0; border-radius: 10px; border: 2px solid transparent; background: none; opacity: .55; }
 .pick:hover { opacity: 1; border-color: var(--line-hi); }
@@ -208,3 +229,11 @@ main {
 .presets button i { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(var(--a) 35%, var(--b) 40%); border: 1px solid var(--line-hi); }
 .field datalist { display: none; }
 .field input[list] { width: 100%; }
+
+/* ---- portfolio privacy note (amber = caution, red = not recommended) ---- */
+.zk-risk { border: 1px solid var(--line-hi); border-radius: 10px; padding: 10px 12px; margin: 8px 0; font-size: 12px; color: var(--muted); }
+.zk-risk strong { display: block; color: var(--text); margin-bottom: 4px; }
+.zk-risk div + div { margin-top: 4px; }
+.zk-risk.caution { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn-text); }
+.zk-risk.not-recommended { border: 2px solid var(--danger); background: #2a0d0d; color: #ffc9c9; }
+.zk-risk.caution strong, .zk-risk.not-recommended strong { color: #fff; }

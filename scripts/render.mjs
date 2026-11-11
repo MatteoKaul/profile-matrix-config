@@ -499,23 +499,23 @@ export const SAMPLE_DATA = (() => {
   return {
     login: "sample", repo: "sample/sample", followers: 48, commits: 1280,
     recentFollowers: [
-      { login: "torvalds" }, { login: "octocat" }, { login: "lumi-dev" },
+      { login: "octocat" }, { login: "monalisa" }, { login: "hubot" },
       { login: "ada-lovelace" }, { login: "grace-hopper" }, { login: "ken-thompson" },
     ],
     // "*" = used for any feed source / Twitch channel / guestbook issue in the preview
     feeds: { "*": [video("Building a dot-matrix GitHub profile from scratch", "2026-10-30"),
-      video("Homelab tour 2026: TrueNAS, Docker and WireGuard", "2026-10-12"),
-      video("Godot jam devlog #3 - lights, sound and a lot of bugs", "2026-09-28"),
-      video("CachyOS after one year", "2026-09-02")] },
+      video("Lorem ipsum: ten tips for cleaner code", "2026-10-12"),
+      video("Game jam devlog #3 - lights, sound and bugs", "2026-09-28"),
+      video("My desk setup, one year later", "2026-09-02")] },
     live: { "*": { live: true, title: "Coding a dot-matrix font renderer", game: "Software and Game Development" } },
     gists: {
       pinned: [gist("led-font.js", "Tiny 5x7 LED font as JSON glyph grids.", "JavaScript", 4),
-        gist("wg-setup.sh", "WireGuard on TrueNAS in five commands.", "Shell", 2)],
-      recent: [gist("notes.md", "Uni notes, algorithms and data structures.", "Markdown", 0)],
+        gist("backup.sh", "Nightly backup of a folder in five lines.", "Shell", 2)],
+      recent: [gist("notes.md", "Lorem ipsum dolor sit amet, study notes.", "Markdown", 0)],
     },
     guestbook: { issue: "*", entries: [
       { login: "octocat", text: "Love the LED style, very clean!", date: "2026-10-29", approved: true },
-      { login: "lumi-dev", text: "Hello from the homelab channel 👋", date: "2026-10-21", approved: true },
+      { login: "monalisa", text: "Hello from the other side of the internet!", date: "2026-10-21", approved: true },
       { login: "spam-bot", text: "not approved, only shown with approval = all", date: "2026-10-20", approved: false },
     ] },
     portfolio: {
@@ -537,21 +537,21 @@ export const SAMPLE_DATA = (() => {
         { appid: 620, name: "Portal 2", total: 1680, month: 60, week: 0 },
       ],
     },
-    pinned: ["homelab-dashboard", "lumi", "dotfiles"],
+    pinned: ["lorem-dashboard", "ipsum-lang", "dotfiles"],
     calendar: { total: 742, weeks },
     repos: [
-      repo("homelab-dashboard", "Self-hosted dashboard for my TrueNAS and Docker services.", "TypeScript", 34, "2026-10-30",
+      repo("lorem-dashboard", "Lorem ipsum dolor sit amet: a small self-hosted dashboard.", "TypeScript", 34, "2026-10-30",
         { tag: "v2.3.0", url: "https://github.com", date: "2026-10-28" }),
-      repo("lumi", "Small scripting language written in C, compiled to bytecode.", "C", 12, "2026-10-20",
+      repo("ipsum-lang", "Tiny scripting language written in C, compiled to bytecode.", "C", 12, "2026-10-20",
         { tag: "v0.9.1-beta", url: "https://github.com", date: "2026-10-12" }),
-      repo("dotfiles", "CachyOS and macOS configuration, managed with a tiny Python script.", "Python", 3, "2026-09-02",
+      repo("dotfiles", "Shell and editor configuration, managed with a tiny Python script.", "Python", 3, "2026-09-02",
         { tag: "2026.09", url: "https://github.com", date: "2026-09-02" }),
-      repo("uni-algorithms", "Exercises from the Applied Computer Science course.", "Java", 1, "2026-06-11", null),
+      repo("algorithms", "Consectetur adipiscing elit: classic algorithms as exercises.", "Java", 1, "2026-06-11", null),
     ],
     contributed: [
-      repo("godotengine/godot", "Godot Engine – Multi-platform 2D and 3D game engine.", "C++", 91200, "2026-10-29", null),
-      repo("CachyOS/linux-cachyos", "Linux kernel with BORE scheduler and performance patches.", "C", 2450, "2026-10-25", null),
-      repo("ghostty-org/ghostty", "Fast, native, feature-rich terminal emulator.", "Zig", 28400, "2026-10-18", null),
+      repo("example-org/web-framework", "Lorem ipsum: a fast, minimal web framework.", "Go", 18200, "2026-10-29", null),
+      repo("example-org/terminal", "Sed do eiusmod: a cross-platform terminal emulator.", "Rust", 9400, "2026-10-25", null),
+      repo("example-org/docs", "Ut enim ad minim veniam: community documentation.", "Markdown", 1250, "2026-10-18", null),
     ],
   };
 })();
