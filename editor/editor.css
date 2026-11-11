@@ -186,7 +186,7 @@ main > * { min-width: 0; min-height: 0; }
 .pick { padding: 0; border-radius: 10px; border: 2px solid transparent; background: none; opacity: .55; }
 .pick:hover { opacity: 1; border-color: var(--line-hi); }
 .pick.on { opacity: 1; border-color: var(--accent); }
-.pick img { width: 100%; display: block; border-radius: 8px; }
+.pick img { width: 100%; display: block; border-radius: 8px; aspect-ratio: 168 / 132; } /* height known before the image loads: stable layout */
 .entry-row { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)) auto; gap: 6px; margin-bottom: 6px; align-items: center; }
 .entry-row input, .entry-row select { min-width: 0; }
 .entry-row.wide { grid-template-columns: 1fr 1fr; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }

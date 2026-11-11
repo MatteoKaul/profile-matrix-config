@@ -302,7 +302,22 @@ function secretWarningBox(warning) {
 
 // --------------------------------------------------------------- options --
 
+/**
+ * Rebuilds the options panel. While the same module stays open (every click on
+ * an icon, a toggle, a select) the scroll positions of the panel and of the icon
+ * list are kept, so the view does not jump back to the top.
+ */
 function renderOptions() {
+  const panel = $("#options"), same = state.optionsFor === state.selected;
+  const top = same ? panel.scrollTop : 0, pickTop = same ? panel.querySelector(".picker")?.scrollTop || 0 : 0;
+  buildOptions();
+  state.optionsFor = state.selected;
+  const restore = () => { panel.scrollTop = top; const pk = panel.querySelector(".picker"); if (pk) pk.scrollTop = pickTop; };
+  restore();
+  requestAnimationFrame(restore); // lazy images may still be sizing the list in the first pass
+}
+
+function buildOptions() {
   const c = cfg();
   if (state.selected === "theme") {
     const curFg = state.settings["theme.fg"] ?? c.theme.fg;
