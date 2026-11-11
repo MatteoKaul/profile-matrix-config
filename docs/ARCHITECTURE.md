@@ -93,7 +93,7 @@ rendered with the same code as the real build.
 
 The editor never writes anywhere. "Download settings.txt" saves the file;
 "Upload to my repo" opens the upload page of the repository typed next to it
-(remembered in this browser only). Dropping a `settings.txt` or `config.json`
+(remembered in this browser only). Dropping a `settings.txt`
 anywhere on the page imports it. The workflow in the profile repository
 rebuilds the profile after the upload.
 
@@ -118,7 +118,7 @@ layout = banner, about, icons, tools, stats
 # theme.<option>
 theme.shape = circle
 # <module id>.<option>
-banner.title = MATREXX
+banner.title = LOREM IPSUM
 # a second icons module named "tools"
 tools.type = icons
 ```
@@ -187,7 +187,7 @@ same type is used for the `people`, `companies`, `employer` and `business`
 modules; add more with `<id>.type = people`. Your own business, e.g.:
 
 ```
-business.items = Matrexx Media | Streaming & web development | https://example.com | file:logo.png
+business.items = Lorem Studio | Web design & development | https://example.com | file:logo.png
 ```
 
 and an imprint link via a links module: `imprint=https://example.com/impressum|IMPRINT`.
@@ -238,7 +238,7 @@ GitHub only shows static files, so counting views needs a small server.
 `tools/counter/server.mjs` (Node, no dependencies) answers
 `/counter.svg` with the count in the profile style and counts every request.
 Run it from a clone of this repo on a machine reachable over https (e.g. your
-homelab behind Caddy / nginx / a Cloudflare Tunnel):
+server behind Caddy / nginx / a Cloudflare Tunnel):
 
 ```sh
 PORT=8080 COUNT_FILE=/data/count.json node tools/counter/server.mjs
@@ -354,6 +354,15 @@ Settings -> General -> **Template repository**.
   blob: videos for the first-frame preview) and shows the
   preview in a sandboxed iframe without script permission, so an imported
   settings file cannot run code. It stores nothing and sends nothing anywhere.
-- Actions are pinned to commit SHAs (checkout v4.3.1, setup-node v4.4.0,
-  upload-pages-artifact v5.0.0, deploy-pages v5.0.1), so a moved tag cannot
-  run other code.
+- Actions are pinned to commit SHAs (checkout v7.0.1, setup-node v7.1.0,
+  upload-pages-artifact v5.0.0, deploy-pages v5.0.1; all Node 24), so a moved
+  tag cannot run other code. checkout keeps no token (`persist-credentials:
+  false`); only the step that pushes gets it. `${{ }}` values reach scripts
+  only through `env:`, never pasted into a `run:` block. release.yml grants
+  no permissions at workflow level; each job asks for its own.
+- settings.txt is parsed into objects without a prototype, and module names
+  that are built-in object members (`constructor`, `__proto__`, ...) are refused.
+- Steam, market and Twitch steps never fail the build: on an error they log a
+  warning, keep the last good data and exit 0 (`scripts/lib/optional.mjs`).
+- Portfolio weights are rounded (`portfolio.precision`, default 1 %) before
+  they are saved; the editor warns below 1 % and with two positions.

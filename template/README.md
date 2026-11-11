@@ -52,3 +52,14 @@ The editor has a step-by-step guide (**Secrets guide**, top bar).
 
 Generator version: see `VERSION`. Source and issues:
 [MatteoKaul/profile-matrix-config](https://github.com/MatteoKaul/profile-matrix-config).
+
+---
+
+<sub>**Disclaimer.** Provided "as is", without warranty of any kind; use at your own risk.
+You are responsible for what your profile publishes: keep API keys in repository secrets and
+check what personal data your settings and fetched data reveal. The portfolio module is not
+investment advice; all figures are without guarantee (*Keine Anlageberatung. Alle Angaben ohne
+Gewähr.*). Data comes from third-party services (GitHub, Steam, Twitch, market data providers)
+under their own terms, which you accept with your own keys; their availability and accuracy are
+not guaranteed, and the `yahoo` provider uses an unofficial endpoint. Product names and logos
+are trademarks of their owners; this project is not affiliated with or endorsed by them.</sub>

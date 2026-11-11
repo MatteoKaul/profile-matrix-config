@@ -1,0 +1,111 @@
+DESIGN ESSENCE - profile-matrix
+===============================
+Single source of truth for the web editor and every generated widget.
+Values are taken from the current code (editor/editor.css, scripts/lib/draw.mjs,
+scripts/lib/settings.mjs). If code and this file disagree, fix one on purpose.
+
+1. CORE IDEA
+------------
+A monochrome LED / scoreboard display behind black glass. Labels are made of
+dots, everything else stays quiet. Restraint over decoration: no gradients,
+no drop shadows on cards, little motion, one striking element (the banner).
+Keywords: dot matrix, terminal, hardware display, calm, high contrast.
+
+2. COLOUR
+---------
+Generated profile - six theme roles, never literal colours in a widget:
+  role     dark      light     used for
+  fg       #ffffff   #111111   text, logos, filled dots, active state
+  muted    #cfcfcf   #3d3d3d   labels, secondary text, small headings
+  faint    #7a7a7a   #8a8a8a   placeholders, hints, comments, disabled
+  dim      #2c2c2c   #dadada   inactive dots (bars, grids, empty slots)
+  bg       #000000   #ffffff   card background
+  border   #2a2a2a   #d0d7de   1 px card outline
+Colour presets only swap the roles: Mono, Purple (#b877ff), Amber, Phosphor,
+Ice, Red, Grey. palette = auto derives muted/faint/dim/border from fg + bg.
+Charts tell series apart by contrast step (fg > muted > faint > dim) and dot
+pattern, never by hue. Gain/loss = sign + arrow, never red/green.
+
+Editor UI tokens (editor.css :root):
+  --bg #050505 page, with a 1 px dot grid every 14 px in --grid #161616
+  --card #0c0c0c panels   --field #131313 inputs   --line #262626 borders
+  --line-hi #4a4a4a hover --text #ececec  --muted #8d8d8d  --accent #ffffff
+  --danger #ff6b6b        --warn-bg #261905 --warn-border #ffb000 --warn-text #ffd479
+
+3. TYPOGRAPHY
+-------------
+Dot text (section headers STYLE, LAYOUT, THEME & TYPOGRAPHY, all profile
+labels and numbers) - always UPPERCASE, rendered by the same renderer:
+  fonts      led (5x7 / large set), micro (3x5), inter, roboto, jetbrains, sans
+  style      led = dots | standard = solid vector letterforms
+  slant      0.22 (italic lean)       dot radius 0.39 x pitch, circle
+  pitch      5.6 section heading | 5.5 big numbers | 4.0 empty state
+             3.2 small heading | 3.0 labels, tiles | 2.6 badges
+             editor panel headers: 10 px high images, muted
+UI text: monospace stack (ui-monospace, SFMono-Regular, Menlo, Consolas,
+Liberation Mono), 13 px / 1.5; help text 12 px muted; field labels 600.
+Copy: English, terse. Profile labels uppercase ("NO RELEASES YET").
+No emoji in UI chrome or generated images.
+
+4. SPACING, SIZES, GRID
+-----------------------
+Profile: card width 880 (CARD_W), half cards 430 at width="49%",
+  padding 22-24, gaps 12 between cards, 6 between tiles,
+  tiles 168x132 / 132x132 / badge 48 high, dot bars 44 dots, pitch 11, r 3.
+Editor: page padding 12, panel padding 16, gap 12 between panels and fields,
+  6-8 inside rows, field spacing 16. Top bar 12 x 16 padding, sticky, blur.
+
+5. SURFACES, BORDERS, DEPTH
+---------------------------
+Cards: fill + 1 px border, radius 12 (theme.radius 0-24; editor --radius 12).
+Inputs and selects radius 8; buttons, chips, pills radius 999.
+Selected / active: 1 px white border + 1 px white inset ring (.mod.sel).
+Hover: border steps from --line to --line-hi, 0.15 s.
+No drop shadows on cards; only modal dialogs carry one. Depth = grey steps.
+Banner: greyscale photo, brightness ~42 %, contrast ~115 %, letter shadow 60.
+
+6. COMPONENTS
+-------------
+Pill button      outline pill, 6 x 12 padding; primary = white fill, black text,
+                 one per screen (Download settings.txt).
+Preset pill      pill with a 14 px dot "LED" (radial colour) left of the name.
+Module row       card row: grip (::), checkbox, name (600), type (11 px muted).
+Field            label (600) -> control (100 % width) -> help (12 px muted).
+Warning box      amber 2 px border on dark amber, white uppercase title, always
+                 visible where a secret is involved; steps fold out.
+Chip             pill with remove button; dotted border = moved, white = 2x wide.
+Data viz         built from dots: dot bars, dot grids, dot rings (donut),
+                 cells with 1 px border (treemap), 2 px fg line with dots.
+
+7. MOTION
+---------
+Hardware, not "juice". step-end for anything electronic, ease-in-out only for
+breathing. No bounce, overshoot, slide-in or scale > 1. One moving element per
+card at most. Every animated SVG honours prefers-reduced-motion.
+  blink 1.1 s step-end | type 0.18 s per letter | flicker 5 s | pulse 4 s to .68
+  live dot 1.6 s | ticker linear, default 60 px/s
+All durations are multiplied by theme.animation_speed (and a per-module
+animation_speed); UI transitions stay at 0.15 s.
+
+8. LAYOUT CONTRACT (editor) - rules that prevent clipping
+---------------------------------------------------------
+- Every flex/grid child that holds text or a form control gets min-width: 0;
+  form controls are width: 100 %; max-width: 100 %.
+- A row of control + button: control flex: 1 1 auto; min-width: 0,
+  button flex: 0 0 auto.
+- Groups of pills or buttons always flex-wrap: wrap.
+- Single-line labels in narrow rows: white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis (full text in title=).
+- Images in panels (dot-matrix headers, previews): max-width: 100 %; height: auto.
+- No fixed pixel widths on controls except tiny ones (colour swatch, number
+  box); columns use minmax(0, 1fr) / clamp().
+- Panels scroll vertically on their own; no panel ever scrolls horizontally.
+- Main grid: sidebar | options | preview on wide screens, preview below on
+  medium screens, one column on small screens. Nothing is cut off at any width
+  from 360 px up.
+
+9. PRINCIPLES
+-------------
+One column of 880 px for the profile; every block an SVG <img>.
+Hide empty modules by default. Same order and spacing in dark and light.
+The editor mirrors the profile: same fonts, same dots, same restraint.
